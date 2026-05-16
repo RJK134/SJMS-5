@@ -22,6 +22,19 @@ name: Phase 0A — Bootstrap SJMS-2.5 spine
 # committed to `phase-0/spine-import` will force-push over those
 # commits. Only re-trigger if the initial bootstrap failed and the
 # remote `phase-0/spine-import` branch has been deleted.
+#
+# SECURITY NOTES:
+# - The user-controlled `source_ref` input is routed through an env: block
+#   on every step that needs it, never via $GITHUB_ENV. This prevents the
+#   CRLF / env-var-injection attack class (CodeQL actions/envvar-injection)
+#   where a newline-containing input could inject LD_PRELOAD / BASH_ENV /
+#   NODE_OPTIONS into subsequent steps.
+# - Values computed at runtime (e.g. SJMS25_SHA from git rev-parse) that
+#   must cross step boundaries are written to $GITHUB_ENV using the
+#   multi-line delimiter syntax for the same reason. Even though
+#   `git rev-parse HEAD` always returns a single hex line in practice,
+#   relying on data-cleanliness is fragile defence; the delimiter syntax
+#   eliminates the surface regardless.
 
 on:
   workflow_dispatch:
@@ -73,8 +86,21 @@ jobs:
           # Capture exact source SHA so the bootstrap commit message records
           # what was actually pulled, not just the ref name (which moves).
           SJMS25_SHA=$(cd sjms-25 && git rev-parse HEAD)
-          echo "SJMS25_SHA=$SJMS25_SHA" >> "$GITHUB_ENV"
-          echo "SOURCE_REF=$SOURCE_REF" >> "$GITHUB_ENV"
+          # Propagate SJMS25_SHA to subsequent steps via the multi-line
+          # delimiter syntax. A naive `echo "VAR=$VAL" >> $GITHUB_ENV`
+          # is unsafe if $VAL ever contains a newline (CodeQL
+          # actions/envvar-injection). git rev-parse HEAD is always a
+          # single hex line in practice, but the delimiter syntax is the
+          # GitHub-documented safe pattern regardless.
+          {
+            echo "SJMS25_SHA<<EOF_SJMS25_SHA_DELIMITER"
+            echo "$SJMS25_SHA"
+            echo "EOF_SJMS25_SHA_DELIMITER"
+          } >> "$GITHUB_ENV"
+          # SOURCE_REF is deliberately NOT written to $GITHUB_ENV. It is
+          # re-declared via the env: block on every step that needs it.
+          # This eliminates the env-var-injection surface for the only
+          # user-controlled input in the workflow.
           {
             echo "SJMS-2.5 HEAD: $SJMS25_SHA"
             echo ""
@@ -128,6 +154,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stage and commit
+        env:
+          # Re-declared via env: rather than read from $GITHUB_ENV to keep
+          # user-controlled input out of the env-var-injection surface.
+          # Same indirection pattern as the clone step.
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           cd sjms-5
           git add -A
@@ -148,9 +179,10 @@ jobs:
             echo "::error::To legitimately re-bootstrap, delete the remote phase-0/spine-import branch first."
             exit 1
           fi
-          # SOURCE_REF and SJMS25_SHA are bash variables (from GITHUB_ENV),
-          # not GitHub expressions, so they're safe to interpolate into the
-          # commit message via the shell.
+          # SOURCE_REF and SJMS25_SHA are bash variables (SOURCE_REF from
+          # env:, SJMS25_SHA from $GITHUB_ENV via the delimiter syntax),
+          # not GitHub expressions, so they're safe to interpolate into
+          # the commit message via the shell.
           git commit -m "chore(phase-0): bootstrap SJMS-2.5 spine into phase-0/spine-import
 
 Batch 0A1 of Phase 0 — mechanical spine import via GitHub Action.
