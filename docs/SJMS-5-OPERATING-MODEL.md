@@ -1,7 +1,7 @@
 # SJMS-5 — Enterprise Delivery Operating Model
 
 > **Effective:** on Phase 0 merge.
-> **Inherited from:** SJMS-2.5 enterprise-delivery operating model (effective 2026-04-22), with SJMS-5 additions §10–§13.
+> **Inherited from:** SJMS-2.5 enterprise-delivery operating model (effective 2026-04-22), with SJMS-5 additions §10–§14.
 
 ---
 
@@ -140,6 +140,58 @@ Richard runs every build via Vercel auto-deploy from `main` and does **NOT** run
 Vercel deploys the API server as a serverless function — there is **no startup hook**. Anything that must happen once per deploy goes in the build command (`server/vercel.json`), not `npm start`.
 
 BullMQ workers do **not** run on Vercel (no long-running process). Workers run on a dedicated long-running host (Railway / Render / Fly) that dequeues from the same Redis used by the API. The Vercel-hosted API only enqueues.
+
+## 14. SJMS-5 addition — auto-merge policy
+
+**Effective:** from Phase 0 batch 0N closeout (when BugBot or equivalent automated PR-review bot is wired and Dependabot alerts enforcement is live).
+
+**Pre-conditions** (set up once on the SJMS-5 repository, all operator-driven):
+
+- **Settings → General → Pull Requests:** ☑ Allow auto-merge. ☑ Allow squash merging. (Optionally disable Merge commits / Rebase merging to enforce squash-only per §4.)
+- **Settings → Branches → Branch protection rule for `main`** (this is also Phase 0 batch 0K):
+  - ☑ Require a pull request before merging — minimum 1 approving review.
+  - ☑ Require review from Code Owners (CODEOWNERS file is added in 0K).
+  - ☑ Require status checks to pass before merging — with these required as soon as they exist: `CI` (typecheck + tests), `CodeQL`, `Security audit (npm)`, `Security meta-check (Dependabot enabled)`, `Container scan (Trivy)`, `SBOM (CycloneDX)`, `BugBot review` (or chosen equivalent).
+  - ☑ Require branches to be up to date before merging.
+  - ☑ Require conversation resolution before merging.
+  - ☑ Require signed commits.
+  - ☑ Require linear history.
+  - ☑ Do not allow bypassing the above settings (operator-included).
+- **Repository settings → Code security and analysis:** ☑ Dependabot alerts on. ☑ Dependabot security updates on. ☑ Secret scanning on. ☑ Push protection on.
+
+**Pre-Phase 0N posture (now until 0N merges):**
+
+- Auto-merge **NOT** enabled by Claude on any PR. There is no meaningful CI gate yet (only GitGuardian); auto-merge would reduce to "merge on take-out-of-draft", removing the human gate without adding any automated safety.
+- Each PR is merged by the operator manually after inline review.
+- Claude responsibilities per PR: open as draft, push commits, surface CI results when they arrive, take PR out of draft only when explicitly told.
+
+**Post-Phase 0N posture (default-on after 0N closeout):**
+
+- For every Claude-opened PR on a non-STOP-gated phase: once the closeout batch lands, Claude takes the PR out of draft and calls `enable_pr_auto_merge` with `merge_method: "squash"`.
+- Auto-merge fires only when **all** of these are true (enforced by the branch-protection ruleset):
+  - Every required status check is green (CI, CodeQL, npm audit, security-meta-check, container-scan, SBOM, BugBot).
+  - The required number of approving reviews is met.
+  - All conversations on the PR are resolved.
+  - The branch is up to date with `main`.
+  - No signed-commit / linear-history violation.
+- Auto-merge **NEVER fires** for any of the following — these are operator-merged manually:
+  - **STOP-gated phases** (Phase 2 multi-tenancy, Phase 11 AI-native uplift, Phase 12 pilot readiness). Operator-merged after design doc + ethics review.
+  - **STOP-gated batches inside other phases** (e.g. Phase 5 `employer_admin` Keycloak role addition touches `roles.ts`; Phase 1H optimistic-locking touches established Prisma relationships).
+  - **Any PR with a HIGH BugBot finding.** Claude does not call `enable_pr_auto_merge` when BugBot has open HIGH findings; Claude fixes first, then re-enables.
+  - **`chore/auto-merge-*` PRs themselves.** Self-referential changes to this policy are operator-reviewed.
+  - **Any PR the operator instructs Claude not to auto-merge.**
+- The operator may revoke auto-merge on any specific PR by replying "disable auto-merge on PR #N". Claude calls `disable_pr_auto_merge` and the PR reverts to operator-merged.
+
+**Override hierarchy** (most specific wins):
+
+1. Operator instruction in the current conversation.
+2. STOP-gate flag on the phase or batch.
+3. HIGH BugBot finding.
+4. Default auto-merge enabled (post-0N).
+
+**Audit trail.** Every `enable_pr_auto_merge` / `disable_pr_auto_merge` call by Claude is logged in the session transcript with the trigger reason ("closeout batch landed", "HIGH finding cleared", "operator instruction"). The squash-merge commit on `main` is the final audit point.
+
+**Why it isn't immediate.** Auto-merge accelerates the loop only when the gates it waits on are meaningful. Until Phase 0N wires CI, CodeQL, npm audit, security-meta-check, container-scan, SBOM, and BugBot as required checks, auto-merge would degenerate to "merge instantly on out-of-draft" — strictly worse than operator-reviewed manual merge. The policy explicitly defers activation until the gates exist.
 
 ---
 
