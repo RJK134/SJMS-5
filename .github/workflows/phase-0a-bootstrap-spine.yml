@@ -16,6 +16,25 @@ name: Phase 0A — Bootstrap SJMS-2.5 spine
 # this workflow does NOT rebrand any source file. Rebranding is a
 # separate, reviewable Claude commit (batch 0A2) so the diff is
 # surgical.
+#
+# WARNING: this workflow is intended to be run ONCE for the initial
+# bootstrap. Re-running it after Phase 0 batches 0A2–0N have been
+# committed to `phase-0/spine-import` will force-push over those
+# commits. Only re-trigger if the initial bootstrap failed and the
+# remote `phase-0/spine-import` branch has been deleted.
+#
+# SECURITY NOTES:
+# - The user-controlled `source_ref` input is routed through an env: block
+#   on every step that needs it, never via $GITHUB_ENV. This prevents the
+#   CRLF / env-var-injection attack class (CodeQL actions/envvar-injection)
+#   where a newline-containing input could inject LD_PRELOAD / BASH_ENV /
+#   NODE_OPTIONS into subsequent steps.
+# - Values computed at runtime (e.g. SJMS25_SHA from git rev-parse) that
+#   must cross step boundaries are written to $GITHUB_ENV using the
+#   multi-line delimiter syntax for the same reason. Even though
+#   `git rev-parse HEAD` always returns a single hex line in practice,
+#   relying on data-cleanliness is fragile defence; the delimiter syntax
+#   eliminates the surface regardless.
 
 on:
   workflow_dispatch:
@@ -55,12 +74,38 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clone SJMS-2.5 (public, no auth)
+        env:
+          # Indirection via env var prevents script injection in the run
+          # block below. GitHub interpolates ${{ inputs.source_ref }} into
+          # SOURCE_REF safely; the shell then reads it as a quoted variable
+          # rather than parsing it as command text.
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
-          git clone --depth 1 --branch ${{ inputs.source_ref }} \
+          git clone --depth 1 --branch "$SOURCE_REF" \
             https://github.com/RJK134/SJMS-2.5.git sjms-25
-          echo "SJMS-2.5 HEAD: $(cd sjms-25 && git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Source ref: ${{ inputs.source_ref }}" >> $GITHUB_STEP_SUMMARY
+          # Capture exact source SHA so the bootstrap commit message records
+          # what was actually pulled, not just the ref name (which moves).
+          SJMS25_SHA=$(cd sjms-25 && git rev-parse HEAD)
+          # Propagate SJMS25_SHA to subsequent steps via the multi-line
+          # delimiter syntax. A naive `echo "VAR=$VAL" >> $GITHUB_ENV`
+          # is unsafe if $VAL ever contains a newline (CodeQL
+          # actions/envvar-injection). git rev-parse HEAD is always a
+          # single hex line in practice, but the delimiter syntax is the
+          # GitHub-documented safe pattern regardless.
+          {
+            echo "SJMS25_SHA<<EOF_SJMS25_SHA_DELIMITER"
+            echo "$SJMS25_SHA"
+            echo "EOF_SJMS25_SHA_DELIMITER"
+          } >> "$GITHUB_ENV"
+          # SOURCE_REF is deliberately NOT written to $GITHUB_ENV. It is
+          # re-declared via the env: block on every step that needs it.
+          # This eliminates the env-var-injection surface for the only
+          # user-controlled input in the workflow.
+          {
+            echo "SJMS-2.5 HEAD: $SJMS25_SHA"
+            echo ""
+            echo "Source ref: $SOURCE_REF"
+          } >> "$GITHUB_STEP_SUMMARY"
           rm -rf sjms-25/.git
 
       - name: Configure git
@@ -77,8 +122,11 @@ jobs:
       - name: Sync SJMS-2.5 contents (excluding bulky reference and existing SJMS-5 docs)
         run: |
           cd sjms-5
-          # rsync semantics: copy from source to dest, --delete REMOVED
-          # so SJMS-5 planning docs on main are preserved when listed in --exclude.
+          # rsync semantics: copy from source to dest, NO --delete so
+          # SJMS-5 planning docs on main are preserved when listed in
+          # --exclude. The leading slash on /README.md anchors the
+          # pattern to the transfer root, leaving deeper README.md
+          # files (server/README.md, client/README.md, etc.) intact.
           rsync -av \
             --exclude='.git/' \
             --exclude='.claude/worktrees/' \
@@ -92,41 +140,64 @@ jobs:
             --exclude='docs/SJMS-5-KNOWN-ISSUES.md' \
             --exclude='docs/SJMS-5-PLAN-AMENDMENTS-2026-05-16.md' \
             --exclude='docs/skills-leads/' \
-            --exclude='README.md' \
+            --exclude='/README.md' \
             ../sjms-25/ ./
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### File counts after sync" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Total tracked files: $(git ls-files | wc -l)" >> $GITHUB_STEP_SUMMARY
-          echo "- New files staged: $(git status --short | wc -l)" >> $GITHUB_STEP_SUMMARY
-          echo "- Prisma schema lines: $(wc -l < prisma/schema.prisma 2>/dev/null || echo 'n/a')" >> $GITHUB_STEP_SUMMARY
-          echo "- API routers: $(ls -d server/src/api/*/ 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
-          echo "- Test files: $(find server/src/__tests__ -name '*.test.ts' 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          {
+            echo ""
+            echo "### File counts after sync"
+            echo ""
+            echo "- Total tracked files: $(git ls-files | wc -l)"
+            echo "- New files staged: $(git status --short | wc -l)"
+            echo "- Prisma schema lines: $(wc -l < prisma/schema.prisma 2>/dev/null || echo 'n/a')"
+            echo "- API routers: $(ls -d server/src/api/*/ 2>/dev/null | wc -l)"
+            echo "- Test files: $(find server/src/__tests__ -name '*.test.ts' 2>/dev/null | wc -l)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stage and commit
+        env:
+          # Re-declared via env: rather than read from $GITHUB_ENV to keep
+          # user-controlled input out of the env-var-injection surface.
+          # Same indirection pattern as the clone step.
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           cd sjms-5
           git add -A
           STAGED=$(git diff --cached --name-only | wc -l)
           if [ "$STAGED" -eq 0 ]; then
-            echo "::warning::Nothing staged. Branch already contains SJMS-2.5 spine."
-            exit 0
+            # Failing the workflow here is intentional. A no-op staging
+            # means one of: (a) the remote phase-0/spine-import branch
+            # already contains the SJMS-2.5 spine and nothing has
+            # changed, in which case re-running is pointless; (b) batches
+            # 0A2-0N have already been committed and any subsequent
+            # push --force-with-lease here would clobber them. In either
+            # case the correct response is operator escalation, not a
+            # silent continue-then-push.
+            echo "::error::Nothing staged. The local branch matches main HEAD."
+            echo "::error::This indicates either (a) the spine is already imported, or"
+            echo "::error::(b) batches 0A2-0N already exist on remote phase-0/spine-import."
+            echo "::error::Refusing to push to avoid overwriting later batch work."
+            echo "::error::To legitimately re-bootstrap, delete the remote phase-0/spine-import branch first."
+            exit 1
           fi
-          SJMS25_SHA=$(cat ../sjms-25-sha 2>/dev/null || echo 'unknown')
+          # SOURCE_REF and SJMS25_SHA are bash variables (SOURCE_REF from
+          # env:, SJMS25_SHA from $GITHUB_ENV via the delimiter syntax),
+          # not GitHub expressions, so they're safe to interpolate into
+          # the commit message via the shell.
           git commit -m "chore(phase-0): bootstrap SJMS-2.5 spine into phase-0/spine-import
 
 Batch 0A1 of Phase 0 — mechanical spine import via GitHub Action.
 
-Source: RJK134/SJMS-2.5@${{ inputs.source_ref }}
-Excluded:
+Source: RJK134/SJMS-2.5@${SOURCE_REF} (commit ${SJMS25_SHA})
+
+Excluded from import:
 - .git/ (source repo metadata)
 - .claude/worktrees/, .claude/*.txt (KI-S5-316 hygiene)
 - node_modules/ (not in repo anyway, defensive)
 - docs/Complete Perplexity How to Build A SJMS.pdf (30 MB reference)
 - docs/*_files/ (HTML export download artefacts)
-- All SJMS-5 planning docs on main (preserved as-is)
+- All SJMS-5 planning docs already on main (preserved as-is)
 - docs/skills-leads/ (preserved as-is)
-- README.md (preserved; rebranded in batch 0A2)
+- /README.md at transfer root (preserved on main; rebranded in batch 0A2). Deeper README.md files (server/, client/, etc.) are imported.
 
 No source files rebranded in this commit. Rebrand follows in batch
 0A2 as a separate, reviewable Claude-driven diff (package.json,
@@ -147,20 +218,25 @@ Next batches per docs/SJMS-5-BUILD-QUEUE.md Phase 0:
 0L transactional outbox + worker (load-bearing)
 0M supply-chain hardening (pin :latest, SBOM, Trivy, Checkov)
 0N Dependabot alerts enforcement + BugBot/CodeRabbit wiring"
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Commit" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          git log --oneline -1 >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo ""
+            echo "### Commit"
+            echo ""
+            echo '```'
+            git log --oneline -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Push to phase-0/spine-import
         run: |
           cd sjms-5
           git push origin phase-0/spine-import --force-with-lease
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next steps" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. The Phase 0 PR will auto-update with the bootstrap commit." >> $GITHUB_STEP_SUMMARY
-          echo "2. Claude will pick up from batch 0A2 (rebrand) and proceed through 0B–0N." >> $GITHUB_STEP_SUMMARY
-          echo "3. **Do not push directly to phase-0/spine-import outside of Claude/CI** — the branch is the canonical Phase 0 work area." >> $GITHUB_STEP_SUMMARY
+          {
+            echo ""
+            echo "### Next steps"
+            echo ""
+            echo "1. The Phase 0 PR will auto-update with the bootstrap commit."
+            echo "2. Claude will pick up from batch 0A2 (rebrand) and proceed through 0B–0N."
+            echo "3. **Do not push directly to phase-0/spine-import outside of Claude/CI** — the branch is the canonical Phase 0 work area."
+            echo "4. **Do not re-run this workflow** unless the remote phase-0/spine-import branch has been deleted first."
+          } >> "$GITHUB_STEP_SUMMARY"
