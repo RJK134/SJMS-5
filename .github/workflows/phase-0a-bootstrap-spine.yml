@@ -1,0 +1,166 @@
+name: Phase 0A — Bootstrap SJMS-2.5 spine
+
+# One-shot bootstrap workflow that clones SJMS-2.5 main into SJMS-5
+# as `phase-0/spine-import`. This sidesteps the limitation that the
+# GitHub MCP push_files API cannot practically push 976 files / 62 MB
+# in a single session.
+#
+# Triggered manually by the operator. Excludes the bulky
+# reference-only files and the SJMS-5 planning docs already on main.
+# Subsequent Phase 0 batches (0B rebrand, 0C MinIO+AES, 0D BullMQ,
+# 0E k6, 0F JWT, 0G MFA, 0H n8n header, 0I CI, 0J closeout, 0K
+# governance, 0L outbox, 0M supply-chain, 0N Dependabot+BugBot)
+# are then driven by Claude via normal push_files calls.
+#
+# Per operating-model §6 STOP-gates and the Phase 0 batch 0A scope,
+# this workflow does NOT rebrand any source file. Rebranding is a
+# separate, reviewable Claude commit (batch 0A2) so the diff is
+# surgical.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CONFIRM to proceed (force-rewrites phase-0/spine-import)'
+        required: true
+        type: string
+      source_ref:
+        description: 'SJMS-2.5 ref to bootstrap from (default: main)'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    name: Clone SJMS-2.5 → phase-0/spine-import
+    runs-on: ubuntu-latest
+    if: ${{ inputs.confirm == 'CONFIRM' }}
+
+    steps:
+      - name: Refuse if confirm input missing
+        if: ${{ inputs.confirm != 'CONFIRM' }}
+        run: |
+          echo "::error::Workflow refused: confirm input must be exactly 'CONFIRM'."
+          exit 1
+
+      - name: Checkout SJMS-5 main
+        uses: actions/checkout@v4
+        with:
+          path: sjms-5
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clone SJMS-2.5 (public, no auth)
+        run: |
+          git clone --depth 1 --branch ${{ inputs.source_ref }} \
+            https://github.com/RJK134/SJMS-2.5.git sjms-25
+          echo "SJMS-2.5 HEAD: $(cd sjms-25 && git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Source ref: ${{ inputs.source_ref }}" >> $GITHUB_STEP_SUMMARY
+          rm -rf sjms-25/.git
+
+      - name: Configure git
+        run: |
+          cd sjms-5
+          git config user.name 'sjms-5-bootstrap-bot'
+          git config user.email 'sjms-5-bootstrap-bot@users.noreply.github.com'
+
+      - name: Create phase-0/spine-import branch from main
+        run: |
+          cd sjms-5
+          git checkout -B phase-0/spine-import
+
+      - name: Sync SJMS-2.5 contents (excluding bulky reference and existing SJMS-5 docs)
+        run: |
+          cd sjms-5
+          # rsync semantics: copy from source to dest, --delete REMOVED
+          # so SJMS-5 planning docs on main are preserved when listed in --exclude.
+          rsync -av \
+            --exclude='.git/' \
+            --exclude='.claude/worktrees/' \
+            --exclude='.claude/*.txt' \
+            --exclude='node_modules/' \
+            --exclude='docs/Complete Perplexity How to Build A SJMS.pdf' \
+            --exclude='docs/*_files/' \
+            --exclude='docs/SJMS-5-SYNTHESIS-PLAN.md' \
+            --exclude='docs/SJMS-5-BUILD-QUEUE.md' \
+            --exclude='docs/SJMS-5-OPERATING-MODEL.md' \
+            --exclude='docs/SJMS-5-KNOWN-ISSUES.md' \
+            --exclude='docs/SJMS-5-PLAN-AMENDMENTS-2026-05-16.md' \
+            --exclude='docs/skills-leads/' \
+            --exclude='README.md' \
+            ../sjms-25/ ./
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File counts after sync" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Total tracked files: $(git ls-files | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- New files staged: $(git status --short | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Prisma schema lines: $(wc -l < prisma/schema.prisma 2>/dev/null || echo 'n/a')" >> $GITHUB_STEP_SUMMARY
+          echo "- API routers: $(ls -d server/src/api/*/ 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Test files: $(find server/src/__tests__ -name '*.test.ts' 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stage and commit
+        run: |
+          cd sjms-5
+          git add -A
+          STAGED=$(git diff --cached --name-only | wc -l)
+          if [ "$STAGED" -eq 0 ]; then
+            echo "::warning::Nothing staged. Branch already contains SJMS-2.5 spine."
+            exit 0
+          fi
+          SJMS25_SHA=$(cat ../sjms-25-sha 2>/dev/null || echo 'unknown')
+          git commit -m "chore(phase-0): bootstrap SJMS-2.5 spine into phase-0/spine-import
+
+Batch 0A1 of Phase 0 — mechanical spine import via GitHub Action.
+
+Source: RJK134/SJMS-2.5@${{ inputs.source_ref }}
+Excluded:
+- .git/ (source repo metadata)
+- .claude/worktrees/, .claude/*.txt (KI-S5-316 hygiene)
+- node_modules/ (not in repo anyway, defensive)
+- docs/Complete Perplexity How to Build A SJMS.pdf (30 MB reference)
+- docs/*_files/ (HTML export download artefacts)
+- All SJMS-5 planning docs on main (preserved as-is)
+- docs/skills-leads/ (preserved as-is)
+- README.md (preserved; rebranded in batch 0A2)
+
+No source files rebranded in this commit. Rebrand follows in batch
+0A2 as a separate, reviewable Claude-driven diff (package.json,
+CLAUDE.md, docker-compose.yml, container names, repo URL
+references, Vercel project name, docs:check expected counts).
+
+Next batches per docs/SJMS-5-BUILD-QUEUE.md Phase 0:
+0B import 2.5 18B+18C finance work
+0C MinIO + AES-256-GCM + cryptobox (extends secrets-at-rest)
+0D BullMQ + Redis worker pattern
+0E k6 scenarios
+0F remove static-secret JWT fallback
+0G enforce MFA in Keycloak realm
+0H correct n8n header to x-internal-service-key
+0I CI green (typecheck + Prisma + tests + advisory lint + CodeQL + npm audit + k6)
+0J Phase 0 closeout (KI register, BugBot, evidence pack)
+0K governance (branch protection + LICENSE + CODEOWNERS + repo description)
+0L transactional outbox + worker (load-bearing)
+0M supply-chain hardening (pin :latest, SBOM, Trivy, Checkov)
+0N Dependabot alerts enforcement + BugBot/CodeRabbit wiring"
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Commit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          git log --oneline -1 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Push to phase-0/spine-import
+        run: |
+          cd sjms-5
+          git push origin phase-0/spine-import --force-with-lease
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. The Phase 0 PR will auto-update with the bootstrap commit." >> $GITHUB_STEP_SUMMARY
+          echo "2. Claude will pick up from batch 0A2 (rebrand) and proceed through 0B–0N." >> $GITHUB_STEP_SUMMARY
+          echo "3. **Do not push directly to phase-0/spine-import outside of Claude/CI** — the branch is the canonical Phase 0 work area." >> $GITHUB_STEP_SUMMARY
