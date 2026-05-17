@@ -1,0 +1,23 @@
+{
+  "name": "@sjms-5/dataset",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SJMS-5 synthetic dataset generator — produces a long-lived virtual UK university on the gdrive5tb datalake",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-synthetic-dataset.mjs",
+    "generate:dry-run": "node scripts/generate-synthetic-dataset.mjs --dry-run --out output/dry-run",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "seedrandom": "^3.0.5"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18.19.0",
+    "pnpm": ">=9.0.0"
+  }
+}
