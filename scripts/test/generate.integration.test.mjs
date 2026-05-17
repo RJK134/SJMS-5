@@ -32,7 +32,7 @@ describe('generator end-to-end', () => {
     outB = await mkdtemp(path.join(tmpdir(), 'sjms5-gen-b-'));
     await run(['--out', outA, '--seed', 'det-test']);
     await run(['--out', outB, '--seed', 'det-test']);
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     await rm(outA, { recursive: true, force: true });

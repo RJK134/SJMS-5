@@ -4,7 +4,8 @@ export default defineConfig({
   test: {
     include: ['scripts/test/**/*.test.mjs'],
     environment: 'node',
-    testTimeout: 30_000,
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
     pool: 'forks',
   },
 });

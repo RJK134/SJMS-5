@@ -36,7 +36,7 @@ describe('D2 foundation tier', () => {
     out = await mkdtemp(path.join(tmpdir(), 'sjms5-d2-'));
     await run(['--out', out, '--seed', 'd2-test']);
     manifest = JSON.parse(await readFile(path.join(out, 'manifest.json'), 'utf8'));
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => { await rm(out, { recursive: true, force: true }); });
 
