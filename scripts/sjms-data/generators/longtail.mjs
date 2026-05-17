@@ -27,6 +27,6 @@ export const domain = 'longtail';
 
 export async function generate(ctx) {
   const models = modelsByDomain().get(domain);
-  await ctx.writeEmptyFor(models);
-  ctx.log(domain, `${models.length} empty CSVs written`);
+  ctx.declareAll(models);
+  ctx.log(domain, `${models.length} models declared (D1 stub — replaced in later phase)`);
 }
