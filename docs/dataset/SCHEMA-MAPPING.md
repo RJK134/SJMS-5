@@ -1,25 +1,57 @@
 # SJMS-5 Synthetic Dataset — Schema Mapping (D0)
 
 > **Phase:** D0 — Stabilise schema mapping
-> **Status:** Draft for operator review
+> **Status:** Decisions taken; ready for D1
 > **Source schema:** `RJK134/sjms-v4-integrated/prisma/schema.prisma` @ HEAD
 > **Date:** 2026-05-17
-> **Next phase:** D1 — generator skeleton + 199 empty CSVs
+> **Next phase:** D1 — generator skeleton + 298 empty CSVs
 
 This document is the load-bearing contract for every subsequent phase
-(D1 through D13) of the SJMS-5 synthetic dataset build. It records:
+(D1 through D11) of the SJMS-5 synthetic dataset build. It records:
 
-1. The **actual model inventory** in the target schema (with material
-   differences from the May 2026 build brief).
-2. The **domain grouping** the generator's directory layout follows.
-3. The **topological generation order** the driver script enforces.
-4. The **governance + finance coverage gap** between the brief and the
-   schema — this is the gate for D2 and D3 and requires operator
-   resolution before either phase opens.
+1. What the dataset is **for** (§1).
+2. The **actual model inventory** in the target schema (§2).
+3. The **scope boundary** — what an SJMS persists and what it does
+   not (§3); this collapses the brief's expanded governance + finance
+   ambitions into the SJMS-vs-ERP rule.
+4. The **domain grouping** the generator's directory layout follows
+   (§4) and the **topological generation order** the driver enforces
+   (§5).
+5. The **Phase 0 follow-on plan** for the ~22 net-additive SJMS-2.5
+   ledger entities that arrive with the spine import (§6).
+
+## 1. Purpose — a virtual university, not just a Phase 0 seed
+
+The dataset is a **long-lived virtual institution** staged on
+`gdrive5tb:sjms-5-dataset/`. It is not a one-off Phase 0 seed. It
+exists to:
+
+- **Make every SJMS-5 phase testable.** v4-integrated's portals throw
+  on its own seed data (KI-S5-101, KI-S5-102). SJMS-5 needs a
+  substantial, internally consistent corpus the moment Phase 0 lands,
+  and a refreshable one as the schema evolves through Phases 1–11.
+- **Survive schema migrations.** Each schema-changing PR re-runs the
+  generator against the new schema; the dated lake snapshot is the
+  before/after diff. Migration safety is verified against real volume,
+  not 5-row fixtures.
+- **Support demos, benchmarks, training.** A persistent reference
+  corpus — "Future Horizons University, ~40k students, 5 years of
+  history" — that contributors, sales conversations, and CI all share
+  the same picture of.
+- **Surface schema improvements.** Generating realistic UK HE data
+  against the v4 schema exposes places where v4's shape is awkward to
+  populate honestly (free-text `headOfDepartment` instead of a Staff
+  FK; flat `Invoice.totalAmount` with no line breakdown; etc.). Those
+  are captured as candidate Phase-1+ schema-improvement design docs,
+  separate from the dataset itself.
+
+The dataset's lifecycle mirrors Maieus2's datalake pattern (PR #94 /
+PR #99): generator writes CSVs → rclone sync to gdrive → SJMS-5's
+`pnpm import-sjms-dataset` walks the manifest and upserts.
 
 ---
 
-## 1. Schema reality
+## 2. Schema reality
 
 The v4-integrated schema has **298 models**, not 199 as the May 2026
 brief and the synthesis plan state. The count has grown since both
@@ -38,14 +70,85 @@ additions **have not yet landed in any readable schema** — SJMS-2.5 is
 not cloned in this environment, and SJMS-5 itself is empty (no Prisma
 schema committed).
 
-**Operating decision:** the dataset generator targets the v4-integrated
-schema *as it stands* (298 models). When SJMS-5 Phase 0 lands and the
-SJMS-5 schema materialises, the generator gets a small extension PR to
-cover the 2.5 net-additive models. Treating v4-integrated as the
-authority avoids a chicken-and-egg dependency on Phase 0 and lets the
-dataset work proceed in parallel.
+The dataset generator targets the v4-integrated schema *as it stands*
+(298 models). When SJMS-5 Phase 0 lands and the SJMS-5 schema
+materialises, a small follow-on PR extends the generator to cover the
+~22 net-additive 2.5 models — see §6 for the plan. Treating
+v4-integrated as the authority avoids a chicken-and-egg dependency on
+Phase 0 and lets the dataset work proceed in parallel.
 
-## 2. Domain grouping
+## 3. Scope — an SJMS, not an ERP
+
+The May 2026 build brief expanded the dataset's reach into
+chart-of-accounts, general-ledger, journal-entry, payroll, and
+grant-accounting territory. **None of that belongs in an SJMS.** A
+real UK university runs four or five interconnected systems:
+
+| System | Owns | Examples |
+|---|---|---|
+| **SJMS / SRS** *(SJMS-5)* | Students, applications, enrolments, modules, assessments, awards, student-facing finance (fees, invoices, payments, bursaries, sponsors, refunds), HESA returns, research outputs | SITS, Banner, Quercus, Tribal |
+| Finance | General ledger, chart of accounts, journal entries, accounts payable, budget framework, fixed assets, banking | Oracle EBS, Unit-e, Tribal Sapphire |
+| HR / Payroll | Staff master record, contracts at HR level, payroll execution, pension contributions, grade-step progression | iTrent, Oracle HCM, ResourceLink |
+| Research Information | Grant accounting, project codes, principal investigators, FEC, overhead recovery | Pure, Symplectic, Worktribe |
+
+What this means for the generator:
+
+**In scope** (the generator produces these — every model the v4 schema
+defines is generated):
+
+- Student-facing finance: `Fee`, `Invoice`, `Payment`, `PaymentPlan`,
+  `SponsorRecord`, `BursaryFund`, `Refund`, plus the SLC and
+  apprenticeship-funding integration surfaces. Phase 0 will add the
+  richer 2.5 ledger entities (StudentAccount, ChargeLine,
+  PaymentAllocation, PaymentInstalment, SponsorAgreement,
+  RefundApproval, ClearanceCheck) — generator extension follows.
+- Staff records at the surface SJMS holds them: `StaffRecord`,
+  `StaffContract`, `StaffQualification`, `ExternalExaminer`.
+- HESA-aligned cost-centre mapping: `HesaCostCentre`,
+  `DepartmentCostCentre`. Used to map departmental activity onto the
+  ~40 HESA cost-centre codes for FSR submission.
+- Research surface: `RefSubmission`, `RefOutput`, `RefImpactCase`,
+  `RefEnvironmentStatement`, `KefMetric`, `KefNarrative`.
+- Governance: `Faculty`, `Department`, plus the polymorphic
+  `Committee` model with `committeeType` enum (`SENATE`,
+  `ACADEMIC_BOARD`, `FACULTY_BOARD`, `LEARNING_TEACHING`,
+  `QUALITY_ASSURANCE`, `RESEARCH`, `EXAM_BOARD`, `FINANCE`,
+  `HEALTH_SAFETY`, `EQUALITY_DIVERSITY`, `STUDENT_EXPERIENCE`,
+  `PROGRAMME_BOARD`). All governance bodies — Senate, Council,
+  Executive Board, Faculty Boards, standing committees — are emitted
+  as `Committee` instances differentiated by `committeeType`.
+
+**Out of scope** (would create orphan models with no schema home, no
+return that consumes them, and no real-system referent):
+
+- Finance system: `NominalCode`, `FundCode`, `GLAccount`,
+  `ChartOfAccounts`, `Budget`, `BudgetLine`, `BudgetCycle`,
+  `Forecast`, `JournalEntry`. SJMS-5 reconciles to the institution's
+  GL via Payment events — it does not hold the GL itself.
+- HR / Payroll system: `PayrollLine`, `PayGradeStepHistory`,
+  `FundAllocation`. SJMS-5 holds `StaffContract` at the FTE +
+  start/end-date level that HESA Staff Return needs — not the monthly
+  payroll-line detail.
+- RIS / Finance bridge: `Grant`, `ProjectCode`, `ResearchAccount`,
+  `GrantClaim`, `GrantExpenditure`. SJMS-5 holds `RefOutput` and
+  `RefImpactCase` as the REF-facing surface; the grant accounting
+  itself lives in the RIS.
+- Governance fragmented into separate tables: `Council`, `Senate`,
+  `GovernanceRole`, `Chair`, `ExecOffice`, `School`, `Institute`,
+  `ResearchCentre` as standalone models. v4's polymorphic
+  `Committee.committeeType` covers the same data more cleanly; the
+  brief's separate tables would be an unnecessary fragmentation.
+
+**Schema-improvement candidate (separate Phase-1+ design doc, not a
+dataset blocker):** `OrganisationUnit` + `OrgUnitHierarchy` as a
+generic abstraction would let SJMS-5 model Institution → Faculty →
+School → Department → ResearchCentre cleanly, support arbitrary
+cost-centre rollups, and let research centres span departments. This
+is a genuine improvement to v4's 2-tier flat Faculty → Department
+shape. Raise as a STOP-gated design doc against SJMS-5 itself, not
+against the dataset generator.
+
+## 4. Domain grouping
 
 The 298 models partition into **12 generator domains**. The directory
 layout the brief sketches (`scripts/sjms-data/generators/<domain>.mjs`)
@@ -58,21 +161,21 @@ corresponding generator file is not created in D1.
 | 1 | identity | `identity.mjs` | 27 | User, Role, Permission, RolePermission, UserRole, Session, ApiKey, Person, PersonName, ContactMethod, PersonAddress, AddressUsage, PersonNationality, Citizenship, ResidencyStatus, EmergencyContact, IdentityDocument, SensitiveAttribute, ConsentRecord, LawfulBasisRecord, TenantConfiguration, SystemConfiguration, plus 5 cross-cutting lookup tables |
 | 2 | reference | `reference.mjs` | 14 | AcademicYear, HesaCostCentre, HesaHecosCode, HesaSocCode, HesaCodingFrame, HesaCodingFrameVersion, HesaQualificationAim, HesaReasonForEndingLookup, HesaQualityRule, HesaStaffContractLevel, HesaSessionYear, plus 3 calendar/lookup tables. Generated first (no FKs). |
 | 3 | estates | `estates.mjs` | 5 | Campus, Building, Room, AccommodationHall, AccommodationRoom |
-| 4 | governance | `governance.mjs` | 9 | Faculty, Department, DepartmentCostCentre (junction), Committee, CommitteeMember, CommitteeMeeting, CommitteeActionItem, StudentOrganisation, StudentOrgMembership, StudentOrgEvent. **See §4 for the gap vs the brief's expected governance scaffolding.** |
-| 5 | staff | `staff.mjs` | 6 | Staff, StaffRecord, StaffContract, StaffQualification, ExternalExaminer, ExternalExaminerAppointment. **The brief's PayrollLine / PayGradeStepHistory do not exist — staff finance is contract-level only.** |
+| 4 | governance | `governance.mjs` | 9 | Faculty, Department, DepartmentCostCentre (junction), Committee, CommitteeMember, CommitteeMeeting, CommitteeActionItem, StudentOrganisation, StudentOrgMembership, StudentOrgEvent. Council / Senate / Faculty Boards / standing committees are all `Committee` instances differentiated by `committeeType` per §3. |
+| 5 | staff | `staff.mjs` | 6 | Staff, StaffRecord, StaffContract, StaffQualification, ExternalExaminer, ExternalExaminerAppointment. Staff finance is contract-level only (no `PayrollLine` — that's HR/Payroll-system territory per §3). |
 | 6 | curriculum | `curriculum.mjs` | 28 | Programme, ProgrammeSpecification, ProgrammeVersion, ProgrammeStageModule, ProgrammeExitAward, ProgrammeContactHours, ProgrammeLearningOutcome, ProgrammeDeclaration, PSRBAccreditation, ProgressionRule, Module, ModuleSpecification, ModuleVersion, ModuleLearningOutcome, ModuleAssessmentComponent, ProposedModule, ProposedLearningOutcome, CurriculumProposal, CurriculumStageHistory, CurriculumApprovalGate, CurriculumComment, CurriculumDocument, CurriculumMap, CurriculumWorkflow, WorkflowStage, ValidationPanelMember, ApprovalCondition, ILOModuleMapping, AssessmentOutcomeMapping |
 | 7 | applicants | `applicants.mjs` | 16 | Applicant, Application, ApplicantQualification, EntryRequirement, TariffCalculation, Offer, PersonalStatement, Reference, InterviewSchedule, UcasApplication, UcasImportLog, ClearingApplication, Prospect, ProspectInteraction, RecruitmentCampaign, RecruitmentEvent |
 | 8 | students | `students.mjs` | 22 | Student, StudentStatusHistory, Enrolment, ModuleRegistration, EnrolmentWorkflow, EnrolmentWorkflowStage, ApprenticeshipRegistration, ApprenticeshipEmployer, ApprenticeshipOtjRecord, ApprenticeshipGateway, ApprenticeshipEpa, StudyAim, StudentInstance, ProgrammeOccurrence, InstancePeriod, EnrolmentOccurrence, ModeOfStudyHistory, InterruptionEvent, TransferEvent, CompletionEvent, WithdrawalEvent, PersonalTutorAllocation, TutorAssignment, TutoringMeeting, StaffModuleAssignment |
 | 9 | assessment | `assessment.mjs` | 29 | Assessment, AssessmentComponent, AssessmentCriteria, AssessmentSubmission, Mark, ModerationRecord, ExternalExaminerReport, AnonymousMarking, TurnitinSubmission, PlagiarismCase, AppealRecord, MitigatingCircumstance, ExamBoard, ExamBoardDecision, ProgressionRecord, AssessmentAttempt, MarkerDecision, ModerationDecisionV2, ExternalReviewDecision, BoardOutcome, ResultRelease, CalculationAudit, ReassessmentRecord, DeferralRecord, ECOutcome, ModerationSampleRecord, SecondMarkingRecord, CondonementRecord, plus engagement/attendance: AttendanceSession, AttendanceRecord, AbsenceRecord, EngagementScore, EngagementAlert, EngagementIntervention, RetentionRiskScore, RetentionIntervention, RetentionHistoricalScore, NeedsAssessment, ExamAdjustment |
 | 10 | awards | `awards.mjs` | 7 | GraduationCohort, GraduationRegistration, GraduandRecord, DegreeAward, Transcript, Certificate, GraduationCeremony, plus DocumentTemplate, DocumentGeneration, GeneratedDocument, BatchDocumentGeneration, Document, DocumentPermission, DocumentSharePointMapping, SharePointGroupMapping, PermissionSyncLog |
-| 11 | finance-student | `finance-student.mjs` | 16 | Fee, Invoice, Payment, PaymentTransaction, PaymentPlan, SponsorRecord, SponsorPayment, BursaryFund, BursaryApplication, FundingApplication, Debt, Refund, SlcLoan, SlcPaymentNotification, SlcFeeAssessment, ApprenticeshipFundingClaim. **No ChargeLine, StudentAccount, PaymentAllocation, JournalEntry, NominalCode, GLAccount, BudgetLine — see §4.** |
+| 11 | finance-student | `finance-student.mjs` | 16 | Fee, Invoice, Payment, PaymentTransaction, PaymentPlan, SponsorRecord, SponsorPayment, BursaryFund, BursaryApplication, FundingApplication, Debt, Refund, SlcLoan, SlcPaymentNotification, SlcFeeAssessment, ApprenticeshipFundingClaim. Phase 0 spine import will add the richer 2.5 ledger (StudentAccount, ChargeLine, PaymentAllocation, PaymentInstalment, SponsorAgreement, RefundApproval, ClearanceCheck) — see §6 for the follow-on plan. GL / journal entries / budgets are out of scope per §3. |
 | 12 | welfare, placements, pgr, comms, research, regulatory, gdpr, misc | `…` (8 files) | ~120 | See [`docs/dataset/MODEL-DOMAIN-MAP.md`](./MODEL-DOMAIN-MAP.md) for the per-model assignment. These domains carry the long tail and are generated after the academic spine. |
 
 Total domains active in D1: **12**. The brief's `finance-chart`,
 `finance-budgets`, `finance-research`, `finance-journal`, and `library`
-domains have no schema support and are not created.
+domains belong outside an SJMS per §3 and are not created.
 
-## 3. Topological generation order
+## 5. Topological generation order
 
 The driver in `scripts/generate-synthetic-dataset.mjs` (D1) sequences
 generators in this order. Each layer's FKs only point at preceding
@@ -130,93 +233,29 @@ The ordering diverges from the brief at two points:
 No cycles in the FK graph. No back-edges that require
 forward-reference patching in the generator.
 
-## 4. Governance + finance coverage gap — STOP-gate question
+## 6. Phase 0 follow-on plan
 
-The brief specifies governance and finance scaffolding the schema does
-not support. This is a **STOP-gate** per
-[operating model §6](../SJMS-5-OPERATING-MODEL.md): schema mutation
-requires an approved design doc before code lands, and the brief
-itself forbids schema changes ("DO NOT mutate the SJMS-5 Prisma
-schema"). The two directives need operator reconciliation before D2
-opens.
+Phase 0 spine import will produce the actual SJMS-5 schema by taking
+v4-integrated as the base and adding ~22 net-additive ledger entities
+from SJMS-2.5. The generator extends to cover them in a single
+follow-on PR — estimated half-day's work — landed against the new
+SJMS-5 schema once Phase 0's `0001_init` migration is committed.
 
-### 4.1 Governance — brief expectation vs schema reality
+**Models to add generators for** (per synthesis plan §4.3):
 
-| Brief expects | Schema has | Verdict |
+| Domain | New models | Notes |
 |---|---|---|
-| OrganisationUnit + OrgUnitHierarchy (4-tier tree) | Faculty → Department (2-tier flat) | **NOT IN SCHEMA** — only Faculty + Department exist; no School / ResearchCentre / Institute tier |
-| Faculty (4 — Arts, Science, Health, Business) | Faculty (`facultyType` not present; v4 seed uses 6 — Arts, Science, Health, Business, Social Sciences, Creative) | Partial — emit 6 faculties matching the seed, not the brief's 4 |
-| School (~16) | — | **NOT IN SCHEMA** |
-| Department (~48) | Department, FK to Faculty | OK — emit 6 × 8 = 48 departments scaled up from the seed's 30 |
-| ResearchCentre (~30, Director + Steering Group) | — | **NOT IN SCHEMA** |
-| Council, Senate, ExecutiveBoard, FacultyBoard, StandingCommittee | Single polymorphic `Committee` model with `committeeType` enum (ACADEMIC_BOARD, SENATE, FACULTY_BOARD, LEARNING_TEACHING, QUALITY_ASSURANCE, RESEARCH, EXAM_BOARD, FINANCE, HEALTH_SAFETY, EQUALITY_DIVERSITY, STUDENT_EXPERIENCE, PROGRAMME_BOARD) | **Adapted** — encode all governance bodies as Committee instances. Council/ExecutiveBoard need adding to the enum (one-line change) or modelled as ACADEMIC_BOARD variants. |
-| GovernanceRole, Chair, ExecOffice | — (Committee has `chairName`/`chairEmail` as text) | **NOT IN SCHEMA** |
-| CommitteeMembership (~400 rows) | CommitteeMember | OK — emit ~400 |
-| Dean / HoS / HoD reporting chain (tree, no cycles) | Faculty.headOfFaculty + Department.headOfDepartment as free-text strings, no FK to Staff/Person | Weak — emit but with no enforceable tree integrity at schema level |
+| awards | Award, AwardRecord, Classification, Transcript, TranscriptLine | Extend `awards.mjs`. The existing v4 `DegreeAward` + `Transcript` overlap — reconcile in the extension PR. |
+| reference | ClassificationRule, ProgressionRule (richer 2.5 versions) | Extend `reference.mjs`. v4 already has `ProgressionRule` — reconcile. |
+| assessment | AnonymousMarkingAllocation, SecondMarkingAllocation, ExamBoardDecision | Extend `assessment.mjs`. v4 has `AnonymousMarking` / `SecondMarkingRecord` / `ExamBoardDecision` — likely a rename or merge. |
+| finance-student | FeeAssessment, ChargeLine, StudentAccount, PaymentPlan (richer), PaymentInstalment, CreditNote, SponsorAgreement, RefundApproval, ClearanceCheck | Extend `finance-student.mjs`. The richer ledger has clear semantic differences (Invoice/Payment normalised through StudentAccount + ChargeLine; PaymentInstalment as separate row per scheduled payment); generator needs the full Fee → FeeAssessment → ChargeLine → Invoice → Payment → PaymentAllocation chain. This is the biggest extension. |
 
-### 4.2 Finance — brief expectation vs schema reality
+The follow-on PR is sized: ~half day. It is not on the critical path
+for D1–D11 — those phases proceed against v4-integrated as it stands,
+and the lake holds the v4-shaped snapshot until the post-Phase-0
+re-generation runs.
 
-| Brief expects | Schema has | Verdict |
-|---|---|---|
-| CostCentre (130-row tree mirroring governance) | HesaCostCentre (~40 HESA-standard codes only) + DepartmentCostCentre (junction) | **Adapted** — emit standard HESA cost centres + dept linkage |
-| NominalCode (~200 JISC FSSG codes) | — | **NOT IN SCHEMA** |
-| FundCode (~10 — unrestricted/restricted/endowed) | — | **NOT IN SCHEMA** |
-| GLAccount (~3,000 sparse CostCentre × NominalCode × FundCode tuples) | — | **NOT IN SCHEMA** |
-| ChartOfAccounts | — | **NOT IN SCHEMA** |
-| Budget + BudgetLine + Forecast (~12,000 rows, 4 years) | — | **NOT IN SCHEMA** |
-| BudgetCycle | — | **NOT IN SCHEMA** |
-| StudentAccount (40,000 rows, net position per student) | — | **NOT IN SCHEMA** (synthesis plan adds this in Phase 0 from SJMS-2.5) |
-| FeeAssessment (~80,000, one per student-year) | Fee (analogue; row per fee event, not per student-year) | **Adapted** — emit Fee rows scoped to one per (student × academic year × feeType) |
-| Invoice + ChargeLine (~80k + ~240k) | Invoice (no ChargeLine — Invoice.totalAmount is flat) | **Adapted** — emit Invoice only, no line breakdown |
-| PaymentAllocation (~200k) | — (Payment.feeId is direct FK, no allocation join) | **NOT IN SCHEMA** |
-| Sponsor / Bursary / Refund | SponsorRecord, SponsorPayment, BursaryFund, BursaryApplication, Refund | OK |
-| Grant (~200 active grants) | — | **NOT IN SCHEMA** |
-| ProjectCode | — | **NOT IN SCHEMA** |
-| GrantClaim / GrantExpenditure | — | **NOT IN SCHEMA** |
-| ResearchAccount | — | **NOT IN SCHEMA** |
-| JournalEntry (~500,000 balanced Dr/Cr pairs) | — | **NOT IN SCHEMA** |
-| Contract (~1,200 staff contracts) | StaffContract | OK |
-| PayrollLine (~60,000 monthly payroll rows) | — | **NOT IN SCHEMA** |
-| PayGradeStepHistory | — | **NOT IN SCHEMA** |
-| FundAllocation | — | **NOT IN SCHEMA** |
-
-### 4.3 Recommended resolution
-
-Three options, in increasing scope:
-
-**Option A — generate only what the schema supports (recommended).**
-D2 emits the 9-model governance set as adapted in §4.1. D3 is dropped
-(no finance-chart to seed). D7 emits the 16-model finance-student set
-without ChargeLine / StudentAccount / JournalEntry. D8 collapses to
-StaffContract-only; D9, D10, D12 (finance-journal) are dropped. Net
-phase count drops from D0–D13 to D0–D11. Generator ships realistic
-data for everything the schema persists; brief's chart-of-accounts
-ambition is recorded as a follow-on for when the schema acquires those
-models (likely Phase 0 spine import + a Phase 1 extension).
-
-**Option B — extend the schema, then generate.** Open a STOP-gated
-design doc proposing the missing 18+ governance + finance models
-(OrganisationUnit, OrgUnitHierarchy, NominalCode, FundCode, GLAccount,
-Budget, BudgetLine, JournalEntry, Grant, PayrollLine, etc.). Operator
-sign-off required. Adds ~2 weeks before D2 can open. Pre-empts and
-makes redundant part of what SJMS-2.5's Phase 18 finance work is
-already developing.
-
-**Option C — wait for SJMS-5 Phase 0 to land first.** Phase 0 imports
-the 2.5 spine and produces the canonical SJMS-5 schema, which the
-synthesis plan says will already include StudentAccount, ChargeLine,
-PaymentInstalment, etc. The remaining gap (governance scaffolding,
-chart-of-accounts, journals) is then resolved against the actual
-target rather than against v4-integrated. Defers the dataset work by
-the duration of Phase 0.
-
-**Recommendation: Option A.** It lets the dataset work proceed now,
-ships value against the schema that actually exists, and leaves the
-expanded ambitions as a documented follow-on rather than a
-multi-week prerequisite. Updating the brief's D2/D3/D7-D10 phase
-scopes accordingly is the operator decision being asked for.
-
-## 5. Seed scripts to port (D2)
+## 7. Seed scripts to port (D2)
 
 Per the brief's "PORT THEM FIRST" rule, the v4-integrated seed scripts
 that already produce opinionated governance reference data:
@@ -235,18 +274,19 @@ Neither seed script populates Committee, StaffContract, Fee, Invoice,
 or any finance models. Those generators are built from scratch in
 D2/D3/D7.
 
-## 6. Verification (D0 acceptance)
+## 8. Verification (D0 acceptance)
 
 - [x] Full model list extracted (298 models) → `docs/dataset/MODELS.txt`
-- [x] Models grouped into 12 domains → §2
-- [x] Governance + finance coverage explicitly tabulated → §4
-- [x] Topological order computed → §3
-- [x] STOP-gate question raised for operator → §4.3
-- [ ] Operator decision on Option A/B/C → blocks D2 opening
-- [ ] Once the decision is recorded, D1 (generator skeleton) opens
-      against `phase-D1/generator-skeleton` from `main`.
+- [x] Models grouped into 12 domains → §4
+- [x] Scope boundary defined (SJMS, not ERP) → §3
+- [x] Topological order computed → §5
+- [x] Phase 0 follow-on plan recorded → §6
+- [x] Seed scripts to port identified → §7
+- [ ] PR closeout: take out of draft, squash-merge — unblocks D1.
+- [ ] D1 (generator skeleton) opens against
+      `phase-D1/generator-skeleton` from `main`.
 
-## 7. Environment notes for D1+
+## 9. Environment notes for D1+
 
 - **Node version mismatch.** This environment runs Node v18.19.1 / pnpm
   9.15.9. The synthesis plan, the Maieus2 toolchain, and the SJMS-5
