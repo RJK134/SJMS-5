@@ -43,6 +43,7 @@ Living document tracking known defects that are **deliberately deferred** rather
 | KI-S5-202 | Migration history is fresh (no SJMS-2.5 or v4 migration replay) | Convergence artefact | Phase 12 — migration rehearsal from SITS/Banner extract validates approach |
 | KI-S5-203 | Multi-tenancy brought forward to Phase 2 (was post-Phase 23 in SJMS-2.5) | Required before functional layering | Phase 2 |
 | KI-S5-204 | AI-native uplift scope and ethics review | Net-new capability | Phase 11 |
+| KI-S5-205 | Dataset extension after Phase 0 spine import — add generators for the ~22 net-additive SJMS-2.5 ledger entities (StudentAccount, ChargeLine, PaymentAllocation, PaymentInstalment, SponsorAgreement, RefundApproval, ClearanceCheck, Award, AwardRecord, Classification, Transcript, TranscriptLine, AnonymousMarkingAllocation, SecondMarkingAllocation, ExamBoardDecision, ProgressionRule and ClassificationRule reconciliation) | Dataset generator targets v4-integrated as it stands today; the richer 2.5 ledger lands as Phase 0 spine import and the generator extends in a half-day follow-on PR. The brief's chart-of-accounts / GL / journal / payroll / grant-accounting ambitions are dropped as out-of-SJMS-scope per [`docs/dataset/SCHEMA-MAPPING.md`](dataset/SCHEMA-MAPPING.md) §3 | Follow-on PR opens after Phase 0 `0001_init` migration commits |
 
 ## Carried over from deep review of SJMS-2.5 (2026-04-29)
 
