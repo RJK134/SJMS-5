@@ -43,6 +43,7 @@ Living document tracking known defects that are **deliberately deferred** rather
 | KI-S5-202 | Migration history is fresh (no SJMS-2.5 or v4 migration replay) | Convergence artefact | Phase 12 — migration rehearsal from SITS/Banner extract validates approach |
 | KI-S5-203 | Multi-tenancy brought forward to Phase 2 (was post-Phase 23 in SJMS-2.5) | Required before functional layering | Phase 2 |
 | KI-S5-204 | AI-native uplift scope and ethics review | Net-new capability | Phase 11 |
+| KI-S5-205 | Synthetic-dataset brief assumes governance + finance models the schema does not have (OrganisationUnit, OrgUnitHierarchy, NominalCode, FundCode, GLAccount, Budget, BudgetLine, JournalEntry, Grant, ProjectCode, PayrollLine, StudentAccount, ChargeLine, PaymentAllocation, +~5 more) | Brief written against a richer schema than either v4-integrated or SJMS-2.5 currently contains; STOP-gate per operating model §6 (schema mutation requires design doc) | Phase D2 entry blocked on operator decision — see [`docs/dataset/SCHEMA-MAPPING.md`](dataset/SCHEMA-MAPPING.md) §4.3 |
 
 ## Carried over from deep review of SJMS-2.5 (2026-04-29)
 
