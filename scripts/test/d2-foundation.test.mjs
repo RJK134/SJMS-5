@@ -34,7 +34,10 @@ describe('D2 foundation tier', () => {
 
   beforeAll(async () => {
     out = await mkdtemp(path.join(tmpdir(), 'sjms5-d2-'));
-    await run(['--out', out, '--seed', 'd2-test']);
+    // Run identity/reference/estates/governance only — keeps the D2-locking
+    // test fast even as later phases grow.
+    await run(['--out', out, '--seed', 'd2-test',
+      '--only', 'identity,reference,estates,governance']);
     manifest = JSON.parse(await readFile(path.join(out, 'manifest.json'), 'utf8'));
   }, 120_000);
 

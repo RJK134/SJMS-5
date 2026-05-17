@@ -85,7 +85,14 @@ export class GeneratorContext {
       throw new Error(`append(): schema has no model "${modelName}"`);
     }
     if (!this._buffers.has(modelName)) this._buffers.set(modelName, []);
-    if (rows && rows.length) this._buffers.get(modelName).push(...rows);
+    if (!rows || !rows.length) return;
+    const buf = this._buffers.get(modelName);
+    // push(...rows) overflows the stack for very large arrays (~600k+).
+    // Chunk to keep argument list manageable.
+    const CHUNK = 10_000;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      buf.push.apply(buf, rows.slice(i, i + CHUNK));
+    }
   }
 
   /** Declare that a model's CSV must be written (with at least the header row). */
