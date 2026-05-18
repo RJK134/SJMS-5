@@ -1,0 +1,150 @@
+name: Dataset Audit Anchor
+
+# When a new snapshot manifest is committed to main, capture its hashes
+# to a public gist as an external tamper-detection anchor. Mirrors the
+# Maieus2 audit-evidence pattern (see docs/dataset/AUDIT-EVIDENCE.md).
+#
+# Requires the GIST_TOKEN repo secret — a fine-grained PAT scoped to
+# `gist:write` on the target gist. Until that secret is configured the
+# workflow will run, compute the anchor record, but skip the gist write
+# with a warning.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/dataset/manifest-*.json'
+      - 'output/**/manifest.json'
+  workflow_dispatch:
+    inputs:
+      manifest_path:
+        description: 'Path to manifest.json (relative to repo root)'
+        required: true
+        default: 'docs/dataset/manifest-2026-05-17.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dataset-audit-anchor
+  cancel-in-progress: false
+
+jobs:
+  anchor:
+    name: Capture manifest anchor to gist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve manifest path
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.manifest_path }}" ]; then
+            paths="${{ github.event.inputs.manifest_path }}"
+          else
+            paths=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} \
+                    | grep -E '(docs/dataset/manifest-.*\.json|output/.*/manifest\.json)' \
+                    || true)
+          fi
+          if [ -z "$paths" ]; then
+            echo "::warning::No manifest path resolved — nothing to anchor."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$paths" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Compose anchor record(s)
+        if: steps.resolve.outputs.skip != 'true'
+        id: compose
+        run: |
+          set -euo pipefail
+          out=anchor-records.jsonl
+          : > "$out"
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            [ ! -f "$path" ] && { echo "::warning::missing $path"; continue; }
+            manifest_sha=$(sha256sum "$path" | awk '{print $1}')
+            schema_hash=$(jq -r '.schemaHash' "$path")
+            total_rows=$(jq -r '.totalRows' "$path")
+            total_tables=$(jq -r '.totalTables' "$path")
+            seed=$(jq -r '.seed' "$path")
+            generated_at=$(jq -r '.generatedAt' "$path")
+            jq -n \
+              --arg ts "$(date -u +%FT%TZ)" \
+              --arg git_sha "${{ github.sha }}" \
+              --arg path "$path" \
+              --arg manifest_sha "$manifest_sha" \
+              --arg schema_hash "$schema_hash" \
+              --argjson total_rows "$total_rows" \
+              --argjson total_tables "$total_tables" \
+              --arg seed "$seed" \
+              --arg generated_at "$generated_at" \
+              '{
+                anchoredAt: $ts,
+                gitSha: $git_sha,
+                manifestPath: $path,
+                manifestSha256: $manifest_sha,
+                schemaHash: $schema_hash,
+                totalRows: $total_rows,
+                totalTables: $total_tables,
+                seed: $seed,
+                generatedAt: $generated_at
+              }' >> "$out"
+          done <<< "${{ steps.resolve.outputs.paths }}"
+          echo "Anchor records:"
+          cat "$out"
+          echo "record_count=$(wc -l < "$out")" >> "$GITHUB_OUTPUT"
+
+      - name: Append to gist (if GIST_TOKEN configured)
+        if: steps.resolve.outputs.skip != 'true' && env.GIST_TOKEN != ''
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ vars.AUDIT_ANCHOR_GIST_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GIST_ID:-}" ]; then
+            echo "::warning::AUDIT_ANCHOR_GIST_ID repo variable not set — printing record only."
+            cat anchor-records.jsonl
+            exit 0
+          fi
+          # Append-only: fetch existing content, concatenate our new lines,
+          # PATCH the gist with the combined file.
+          existing=$(curl -s -H "Authorization: token $GIST_TOKEN" \
+                      "https://api.github.com/gists/$GIST_ID" \
+                      | jq -r '.files["sjms-5-dataset-anchors.jsonl"].content // ""')
+          combined=$(printf '%s\n%s' "$existing" "$(cat anchor-records.jsonl)" | sed '/^$/d')
+          jq -n --arg content "$combined" '{
+            files: { "sjms-5-dataset-anchors.jsonl": { content: $content } }
+          }' > patch.json
+          curl -fsS -X PATCH \
+            -H "Authorization: token $GIST_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @patch.json \
+            "https://api.github.com/gists/$GIST_ID" \
+            | jq '{url: .html_url, updated_at: .updated_at}'
+          echo "Anchored ${{ steps.compose.outputs.record_count }} record(s)."
+
+      - name: Warn if GIST_TOKEN missing
+        if: steps.resolve.outputs.skip != 'true' && env.GIST_TOKEN == ''
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          echo "::warning::GIST_TOKEN secret not configured — anchor record computed but not published. See docs/dataset/AUDIT-EVIDENCE.md for setup."
+          cat anchor-records.jsonl
+
+      - name: Upload anchor records as artifact
+        if: steps.resolve.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-records-${{ github.sha }}
+          path: anchor-records.jsonl
+          retention-days: 365
