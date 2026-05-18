@@ -73,16 +73,25 @@ jobs:
             [ -z "$path" ] && continue
             [ ! -f "$path" ] && { echo "::warning::missing $path"; continue; }
             manifest_sha=$(sha256sum "$path" | awk '{print $1}')
+            # contentSha256 strips wall-clock timestamps and sorts keys
+            # so two regens of the same data anchor identically. This is
+            # what consumers verify against — manifestSha256 is kept for
+            # exact-byte forensics only.
+            content_sha=$(jq -S 'del(.generatedAt, .finishedAt)' "$path" \
+                          | sha256sum | awk '{print $1}')
             schema_hash=$(jq -r '.schemaHash' "$path")
             total_rows=$(jq -r '.totalRows' "$path")
             total_tables=$(jq -r '.totalTables' "$path")
             seed=$(jq -r '.seed' "$path")
             generated_at=$(jq -r '.generatedAt' "$path")
-            jq -n \
+            # -c (compact) is critical — each anchor record must be one
+            # line of valid JSON so the gist file stays valid JSONL.
+            jq -c -n \
               --arg ts "$(date -u +%FT%TZ)" \
               --arg git_sha "${{ github.sha }}" \
               --arg path "$path" \
               --arg manifest_sha "$manifest_sha" \
+              --arg content_sha "$content_sha" \
               --arg schema_hash "$schema_hash" \
               --argjson total_rows "$total_rows" \
               --argjson total_tables "$total_tables" \
@@ -93,6 +102,7 @@ jobs:
                 gitSha: $git_sha,
                 manifestPath: $path,
                 manifestSha256: $manifest_sha,
+                contentSha256: $content_sha,
                 schemaHash: $schema_hash,
                 totalRows: $total_rows,
                 totalTables: $total_tables,

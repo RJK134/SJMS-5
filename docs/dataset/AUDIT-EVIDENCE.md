@@ -30,6 +30,7 @@ JSON line per manifest to the gist:
   "gitSha":         "<commit-that-introduced-the-manifest>",
   "manifestPath":   "docs/dataset/manifest-2026-05-17.json",
   "manifestSha256": "<sha256 of the manifest file>",
+  "contentSha256":  "<sha256 of the manifest with timestamps stripped + keys sorted>",
   "schemaHash":     "<v4-integrated schema hash captured at generation>",
   "totalRows":      5292376,
   "totalTables":    298,
@@ -37,6 +38,20 @@ JSON line per manifest to the gist:
   "generatedAt":    "2026-05-17T19:40:11.653Z"
 }
 ```
+
+Two hashes are recorded for different purposes:
+
+- **`manifestSha256`** — sha256 of the manifest file byte-for-byte.
+  Tightest forensic match, but breaks across regens because the
+  manifest contains `generatedAt` / `finishedAt` wall-clock fields.
+- **`contentSha256`** — sha256 of the manifest with timestamps stripped
+  and keys recursively sorted (`jq -S 'del(.generatedAt, .finishedAt)'`).
+  Stable across regens of the same logical snapshot, so consumers
+  verify primarily against this.
+
+The verifier checks `contentSha256` first; a fallback `manifestSha256`
+match still counts as anchored — it just means the lake's bytes are
+the exact ones that were anchored, not merely the same logical snapshot.
 
 ## Setup (one-time)
 
