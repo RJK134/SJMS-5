@@ -40,7 +40,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # Need depth >= 2 so `git diff-tree -r HEAD` has the parent
+          # commit available to diff against. With depth=1 the workflow
+          # silently returns no paths and skips the anchor write.
+          fetch-depth: 2
 
       - name: Resolve manifest path
         id: resolve
