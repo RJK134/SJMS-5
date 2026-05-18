@@ -63,5 +63,3 @@ describe('Rng', () => {
     }
   });
 });
-
-// CI smoke-test trigger — remove if you see this on main
