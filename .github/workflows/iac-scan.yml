@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@master
         with:
           # Scan Dockerfiles, docker-compose, nginx confs, and any
           # kubernetes manifests that arrive in later phases.

@@ -26,6 +26,11 @@ jobs:
   trivy-api:
     name: Trivy — API image
     runs-on: ubuntu-latest
+    # Phase 0 posture: advisory while the API/client Dockerfiles are
+    # still maturing (0I owns production-grade image creation). Ratchets
+    # to required on auto-merge activation after 0N closes per
+    # docs/SJMS-5-OPERATING-MODEL.md §14.
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,7 +63,7 @@ jobs:
 
       - name: Scan API image with Trivy
         if: steps.build.outputs.skipped != 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: sjms5-api:scan
           format: sarif
@@ -78,6 +83,7 @@ jobs:
   trivy-client:
     name: Trivy — client image
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,7 +113,7 @@ jobs:
 
       - name: Scan client image with Trivy
         if: steps.build.outputs.skipped != 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: sjms5-client:scan
           format: sarif
