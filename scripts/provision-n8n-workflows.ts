@@ -15,7 +15,7 @@
  * Required env vars:
  *   N8N_API_URL              — e.g. http://localhost:5678
  *   N8N_API_KEY              — n8n API key for authentication
- *   WORKFLOW_INTERNAL_SECRET  — value for the x-internal-key header credential
+ *   WORKFLOW_INTERNAL_SECRET  — value for the x-internal-service-key header credential
  *
  * Usage:
  *   npx tsx scripts/provision-n8n-workflows.ts
@@ -122,7 +122,7 @@ async function ensureCredential(): Promise<string | null> {
     console.warn(
       `WARNING: WORKFLOW_INTERNAL_SECRET not set. Cannot create credential.\n` +
       `  Manual step required: create "${CREDENTIAL_NAME}" in n8n UI\n` +
-      `  (Credentials → Add → Header Auth → name: x-internal-key).`,
+      `  (Credentials → Add → Header Auth → name: x-internal-service-key).`,
     );
     return null;
   }
@@ -132,7 +132,7 @@ async function ensureCredential(): Promise<string | null> {
       name: CREDENTIAL_NAME,
       type: 'httpHeaderAuth',
       data: {
-        name: 'x-internal-key',
+        name: 'x-internal-service-key',
         value: WORKFLOW_INTERNAL_SECRET,
       },
     });
