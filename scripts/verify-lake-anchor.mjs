@@ -87,14 +87,23 @@ async function fetchAnchors(gistUrl) {
     process.stderr.write(`Unexpected gist URL shape: ${gistUrl}\n`);
     process.exit(3);
   }
-  const [, user, id] = m;
-  const rawUrl = `https://gist.githubusercontent.com/${user}/${id}/raw/sjms-5-dataset-anchors.jsonl`;
-  const res = await fetch(rawUrl);
+  const [, /* user */, id] = m;
+  // Use the API endpoint (always fresh) rather than the raw gist URL
+  // (CDN-cached for ~60s after a write — would serve stale content
+  // straight after an anchor dispatch).
+  const apiUrl = `https://api.github.com/gists/${id}`;
+  const res = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } });
   if (!res.ok) {
     process.stderr.write(`gist fetch failed: ${res.status} ${res.statusText}\n`);
     process.exit(3);
   }
-  const body = await res.text();
+  const json = await res.json();
+  const file = json.files?.['sjms-5-dataset-anchors.jsonl'];
+  if (!file) {
+    process.stderr.write(`gist ${id} has no sjms-5-dataset-anchors.jsonl file\n`);
+    process.exit(3);
+  }
+  const body = file.content ?? '';
   // Tolerant JSONL parse: skip blank lines, skip lines that don't parse
   // (defensive against a manually-edited gist), and skip records that
   // lack a manifestPath (e.g. the gist's intro comment line).
