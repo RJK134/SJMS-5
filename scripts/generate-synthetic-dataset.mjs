@@ -127,7 +127,10 @@ async function main() {
     ctx.log(domain, `done in ${((Date.now() - t0) / 1000).toFixed(2)}s`);
   }
 
-  // 5. Manifest
+  // 5. Flush buffered rows to disk
+  await ctx.flush();
+
+  // 6. Manifest
   if (!args.dryRun) {
     const manifest = await writeManifest({
       outDir: args.out,
