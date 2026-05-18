@@ -5,8 +5,18 @@ history) as CSV files staged on `gdrive5tb:sjms-5-dataset/`. The
 imported dataset populates SJMS-5's Prisma database for Phase 0+
 testing, demos, and benchmarks.
 
+**Headline at the 2026-05-17 snapshot:**
+- 298 tables / 5,292,376 rows / ~824MB
+- 40,000 active students + 12,000 alumni
+- 980 staff / 10,000 applicants / 625 programmes / 3,360 modules
+- 5 years of enrolment + assessment + finance history
+- Generation: ~55s single-threaded Node 18; byte-identical reruns at
+  fixed seed
+
 See [`../docs/dataset/SCHEMA-MAPPING.md`](../docs/dataset/SCHEMA-MAPPING.md)
-for the architectural contract this generator implements.
+for the architectural contract and
+[`../docs/dataset/DATASET-STATS.md`](../docs/dataset/DATASET-STATS.md)
+for the per-table breakdown.
 
 ## Quick start
 
@@ -88,12 +98,3 @@ The generator targets `RJK134/sjms-v4-integrated/prisma/schema.prisma`
 @ HEAD (298 models as of 2026-05-17). The manifest records the schema
 hash; importers refuse a snapshot whose schema hash does not match
 their compiled schema.
-
-## Continuous integration
-
-`.github/workflows/dataset-ci.yml` runs on every PR that touches the
-generator, fixtures, or tests. It executes `pnpm test` and then
-generates two `--scale 0.05` snapshots from the same seed and
-sha256-compares them — any divergence fails the build. This is the
-guard against accidental non-determinism (a `Math.random()` slipping
-in, an unsorted `Map` iteration, a `Date.now()` call, etc.).
