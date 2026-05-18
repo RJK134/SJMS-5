@@ -123,9 +123,13 @@ function sortKeysDeep(v) {
 }
 
 function contentSha256(manifest) {
+  // Strip runtime-only fields: wall-clock timestamps and the
+  // generatorCommit git SHA. The remaining content (rowCounts,
+  // schemaHash, seed, etc.) is the snapshot's logical identity.
   const stripped = { ...manifest };
   delete stripped.generatedAt;
   delete stripped.finishedAt;
+  delete stripped.generatorCommit;
   // jq's default output: 2-space indent + trailing newline.
   const canon = JSON.stringify(sortKeysDeep(stripped), null, 2) + '\n';
   return createHash('sha256').update(canon).digest('hex');
