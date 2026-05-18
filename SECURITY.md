@@ -1,12 +1,12 @@
-# Security Policy — SJMS 2.5
+# Security Policy — SJMS-5
 
-> SJMS 2.5 (Student Journey Management System) is operated by Future
+> SJMS-5 (Student Journey Management System) is operated by Future
 > Horizons Education. This policy covers the source repository at
-> `RJK134/SJMS-2.5` and the deployable artefacts built from it.
+> `RJK134/SJMS-5` and the deployable artefacts built from it.
 
 ## Supported versions
 
-SJMS 2.5 is in active pre-pilot development. Only the `main` branch
+SJMS-5 is in active pre-pilot development. Only the `main` branch
 and the most recently tagged phase release are supported. Security
 fixes are applied to `main` and then merged into active phase
 branches; older feature branches are not patched.
@@ -27,7 +27,7 @@ window in which an adversary can act before a fix is available.
 Use one of the following private channels:
 
 1. **GitHub private vulnerability reporting** (preferred). Open
-   <https://github.com/RJK134/SJMS-2.5/security/advisories/new> and
+   <https://github.com/RJK134/SJMS-5/security/advisories/new> and
    submit a report. Only repository maintainers can see it.
 2. **Email.** Send details to the project lead at the address
    published on the Future Horizons Education website. Encrypt
@@ -104,5 +104,5 @@ researchers to:
   phase; the full roadmap is in
   `docs/delivery-plan/enterprise-readiness-plan.md`.
 
-Thank you for helping keep SJMS 2.5 safe for the students and staff
+Thank you for helping keep SJMS-5 safe for the students and staff
 who will ultimately rely on it.

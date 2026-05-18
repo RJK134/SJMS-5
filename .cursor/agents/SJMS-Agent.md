@@ -8,9 +8,9 @@
 
 ## Purpose
 
-Autonomous coding agent for the **SJMS 2.5** UK higher-education student record
+Autonomous coding agent for the **SJMS-5** UK higher-education student record
 system. Handles PR review, PR auto-fix, issue-to-PR implementation, and
-`@cursor` mentions on the `RJK134/SJMS-2.5` repository.
+`@cursor` mentions on the `RJK134/SJMS-5` repository.
 
 ## Stack
 

@@ -1,4 +1,4 @@
-# SJMS 2.5 — BugBot Rules
+# SJMS-5 — BugBot Rules
 
 ## Context
 This is a development/demo build of a university student record system.

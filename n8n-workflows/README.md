@@ -1,4 +1,4 @@
-# SJMS 2.5 — n8n Workflows
+# SJMS-5 — n8n Workflows
 
 15 production workflows triggered by API webhook events.
 

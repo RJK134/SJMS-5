@@ -1,4 +1,4 @@
-## Review Scope — SJMS 2.5
+## Review Scope — SJMS-5
 
 > ⚠️ Review only the diff in this PR and the control files it updates.
 

@@ -1,4 +1,4 @@
-# SJMS 2.5 — Student Journey Management System
+# SJMS-5 — Student Journey Management System
 ## Claude Code Master Context File
 
 > **Organisation:** Future Horizons Education (FHE)

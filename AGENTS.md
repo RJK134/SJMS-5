@@ -4,7 +4,7 @@
 
 ### Environment overview
 
-SJMS 2.5 is a monorepo with `client/` (React/Vite) and `server/` (Express/TypeScript) npm workspaces, backed by PostgreSQL, Redis, and MinIO via Docker Compose. See `README.md` and `CONTRIBUTING.md` for full setup docs and command reference.
+SJMS-5 is a monorepo with `client/` (React/Vite) and `server/` (Express/TypeScript) npm workspaces, backed by PostgreSQL, Redis, and MinIO via Docker Compose. See `README.md` and `CONTRIBUTING.md` for full setup docs and command reference.
 
 ### Gotchas
 

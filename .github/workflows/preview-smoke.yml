@@ -21,9 +21,9 @@ name: Preview smoke check
 # Configuration:
 #   - PREVIEW_API_URL secret/variable: the Vercel server project URL.
 #     Typical shapes (either accepted, the step normalises):
-#       https://sjms-2-5-server.vercel.app
-#       https://sjms-2-5-server.vercel.app/api
-#       https://sjms-2-5-server-<branch>-<team>.vercel.app (preview alias)
+#       https://sjms5-server.vercel.app
+#       https://sjms5-server.vercel.app/api
+#       https://sjms5-server-<branch>-<team>.vercel.app (preview alias)
 #   - INTERNAL_SERVICE_KEY secret: the same value the Express server has set
 #     in its Vercel environment variables; supplied via the
 #     X-Internal-Service-Key header so the smoke check bypasses Keycloak
@@ -75,8 +75,8 @@ jobs:
           # The Express server mounts at /api/v1 (see server/src/index.ts).
           # Normalise PREVIEW_API_URL so it works whether the operator
           # configured it with or without a trailing /api segment:
-          #   https://sjms-2-5-server.vercel.app       → adds /api
-          #   https://sjms-2-5-server.vercel.app/api   → leaves as-is
+          #   https://sjms5-server.vercel.app       → adds /api
+          #   https://sjms5-server.vercel.app/api   → leaves as-is
           # Any trailing slash is also stripped.
           BASE_URL="${PREVIEW_API_URL%/}"
           if [[ "$BASE_URL" != */api ]]; then

@@ -1,7 +1,7 @@
-# Governance — SJMS 2.5
+# Governance — SJMS-5
 
 > **Audience:** maintainers, code reviewers, auditors, project lead.
-> **Status:** authoritative. This document, together with `.github/CODEOWNERS`, `SECURITY.md`, and `scripts/governance/protection.json`, is the codified change-management policy for the `RJK134/SJMS-2.5` repository.
+> **Status:** authoritative. This document, together with `.github/CODEOWNERS`, `SECURITY.md`, and `scripts/governance/protection.json`, is the codified change-management policy for the `RJK134/SJMS-5` repository.
 > **Last updated:** 2026-04-29
 
 This file describes who can approve, how releases are cut, and how
