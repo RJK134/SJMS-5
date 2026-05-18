@@ -20,7 +20,31 @@ SJMS_DATASET_SEED='2026-05' pnpm generate -- --out output/2026-05-17
 # Sync to the lake
 rclone sync output/2026-05-17/ gdrive5tb:sjms-5-dataset/2026-05-17/
 rclone sync output/2026-05-17/ gdrive5tb:sjms-5-dataset/latest/
+
+# Or do all of the above in one go:
+scripts/refresh-snapshot.sh           # date defaults to today (UTC)
+scripts/refresh-snapshot.sh 2026-05-17  # date pinned
 ```
+
+## Weekly refresh cadence
+
+`scripts/refresh-snapshot.sh` is the one-shot wrapper that regenerates
+and pushes a snapshot to `gdrive5tb:sjms-5-dataset/<DATE>/` plus the
+`/latest/` mirror. It is intended to run weekly (Monday morning) via
+the `/schedule` remote routine — the same cadence Workhorse uses for
+its CSV exports, so downstream consumers (Maieus2, Shakespeare-is-Boring,
+MCM) see a consistent refresh window across both lakes.
+
+The script:
+
+1. Verifies `rclone` has the `gdrive5tb:` remote configured.
+2. Runs `pnpm install --frozen-lockfile` then the generator.
+3. Verifies the manifest reports 298 tables.
+4. Syncs to the dated path then mirrors to `/latest/`.
+5. Tees all output to `output/<DATE>/refresh.log`.
+
+Any failed step aborts the run — no partial pushes. The dated path is
+authoritative, `/latest/` is convenience.
 
 ## Layout
 
