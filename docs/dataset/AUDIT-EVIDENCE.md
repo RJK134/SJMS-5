@@ -109,7 +109,7 @@ The verifier pulls only `manifest.json` from the lake, not the full
 
 ## Tamper-detection sites
 
-Five places notice an inconsistency, in order of when an attacker would
+Six places notice an inconsistency, in order of when an attacker would
 encounter them:
 
 1. **CI workflow** (`dataset-ci.yml`) — refuses non-deterministic
@@ -124,6 +124,14 @@ encounter them:
    to import if `FORBIDDEN_COLUMNS` appears in any CSV header.
 5. **Independent verifier** (`scripts/verify-lake-anchor.mjs`) — any
    consumer or auditor can pull-and-verify against the public gist.
+6. **Scheduled drift detector**
+   (`.github/workflows/lake-drift-detector.yml`) — runs the verifier
+   every Tuesday 07:00 UTC against `gdrive5tb:sjms-5-dataset/latest/`.
+   If `contentSha256` doesn't match an anchor record, opens a
+   `drift`-labelled issue with the verifier output for triage.
+   Requires `RCLONE_CONFIG_GDRIVE5TB_*` repo secrets for the runner to
+   reach gdrive — without them the workflow runs in lean mode (skips
+   verification with a clear warning).
 
 An attacker would have to compromise: the local working copy, the CI
 runner, the gist, AND every downstream consumer's verification step

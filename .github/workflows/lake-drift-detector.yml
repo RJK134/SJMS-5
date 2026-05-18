@@ -1,0 +1,164 @@
+name: Lake drift detector
+
+# Tuesdays 07:00 UTC — one hour after the Monday refresh has had time
+# to land both on GitHub (via PR #32-style auto PRs) and on the lake
+# (via operator rclone-sync, once that's wired). Pulls the manifest
+# from gdrive5tb:sjms-5-dataset/latest/ and runs the verifier against
+# the public anchor gist. If contentSha256 doesn't match, opens an
+# issue tagged `drift`.
+#
+# Lean mode (default): runs without lake credentials, soft-skips the
+# verification step with a warning telling the operator to wire the
+# RCLONE_CONFIG_GDRIVE5TB_* secrets.
+#
+# Full mode (RCLONE_CONFIG_GDRIVE5TB_* secrets set): rclone copies
+# manifest.json from the lake to /tmp and runs the verifier. Mismatch
+# triggers an issue.
+#
+# Mirrors the lean/full pattern from dataset-ci.yml.
+
+on:
+  schedule:
+    # Tuesdays 07:00 UTC
+    - cron: '0 7 * * 2'
+  workflow_dispatch:
+    inputs:
+      lake_source:
+        description: 'Override lake source (default gdrive5tb:sjms-5-dataset/latest/)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: lake-drift-detector
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Verify lake against anchor gist
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # rclone reads its config from env vars of the form
+      # RCLONE_CONFIG_<REMOTE>_*. Promoting these to job env (even when
+      # unset) lets the `if:` conditions read presence/absence without
+      # exposing the values to expression context.
+      RCLONE_CONFIG_GDRIVE5TB_TYPE: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_TYPE }}
+      RCLONE_CONFIG_GDRIVE5TB_CLIENT_ID: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_CLIENT_ID }}
+      RCLONE_CONFIG_GDRIVE5TB_CLIENT_SECRET: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_CLIENT_SECRET }}
+      RCLONE_CONFIG_GDRIVE5TB_SCOPE: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_SCOPE }}
+      RCLONE_CONFIG_GDRIVE5TB_ROOT_FOLDER_ID: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_ROOT_FOLDER_ID }}
+      RCLONE_CONFIG_GDRIVE5TB_TOKEN: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_TOKEN }}
+      RCLONE_CONFIG_GDRIVE5TB_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.RCLONE_CONFIG_GDRIVE5TB_SERVICE_ACCOUNT_CREDENTIALS }}
+      SJMS_ANCHOR_GIST_URL: https://gist.github.com/RJK134/858fb64fcf6505b2fc154f8ef9684973
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Detect rclone config presence
+        id: rclone-state
+        run: |
+          if [ -n "${RCLONE_CONFIG_GDRIVE5TB_TYPE:-}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "rclone config detected — full mode."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::RCLONE_CONFIG_GDRIVE5TB_TYPE secret not set — drift detector running in lean mode (skip). Wire rclone secrets to enable lake verification."
+          fi
+
+      - name: Install rclone
+        if: steps.rclone-state.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          curl -sSL https://rclone.org/install.sh | sudo bash
+
+      - name: Setup Node
+        if: steps.rclone-state.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pull lake manifest
+        if: steps.rclone-state.outputs.available == 'true'
+        env:
+          LAKE_SOURCE: ${{ github.event.inputs.lake_source || 'gdrive5tb:sjms-5-dataset/latest/' }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/lake-snapshot
+          rclone copy "${LAKE_SOURCE}manifest.json" /tmp/lake-snapshot/ --quiet
+          test -f /tmp/lake-snapshot/manifest.json
+          jq '{totalTables, totalRows, schemaHash, seed, generatedAt}' /tmp/lake-snapshot/manifest.json
+
+      - name: Run verifier
+        if: steps.rclone-state.outputs.available == 'true'
+        id: verify
+        env:
+          LAKE_SOURCE: ${{ github.event.inputs.lake_source || 'gdrive5tb:sjms-5-dataset/latest/' }}
+        run: |
+          set +e
+          node scripts/verify-lake-anchor.mjs \
+            --source /tmp/lake-snapshot/ \
+            --gist-url "$SJMS_ANCHOR_GIST_URL" \
+            2>&1 | tee /tmp/verify-output.txt
+          rc=$?
+          echo "verify_exit=$rc" >> "$GITHUB_OUTPUT"
+          case $rc in
+            0) echo "result=ok" >> "$GITHUB_OUTPUT" ;;
+            1) echo "result=mismatch" >> "$GITHUB_OUTPUT" ;;
+            2) echo "result=no-anchor" >> "$GITHUB_OUTPUT" ;;
+            *) echo "result=error" >> "$GITHUB_OUTPUT" ;;
+          esac
+          # Don't fail the workflow on mismatch — we want the workflow
+          # to land and open the issue, not block CI.
+          exit 0
+
+      - name: Open drift issue if mismatch
+        if: steps.rclone-state.outputs.available == 'true' && steps.verify.outputs.result != 'ok'
+        env:
+          LAKE_SOURCE: ${{ github.event.inputs.lake_source || 'gdrive5tb:sjms-5-dataset/latest/' }}
+          RESULT: ${{ steps.verify.outputs.result }}
+        run: |
+          set -euo pipefail
+          BODY=$(cat <<MARKDOWN
+          The lake drift detector ran today and reported \`$RESULT\` against the public anchor gist.
+
+          - **Lake source**: \`$LAKE_SOURCE\`
+          - **Verifier exit code**: ${{ steps.verify.outputs.verify_exit }}
+          - **Result**: \`$RESULT\`
+          - **Workflow run**: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### What "$RESULT" means
+
+          - \`mismatch\` — anchor record exists with the lake's contentSha256, but \`schemaHash\` disagrees. Likely indicates a tampered manifest. **Investigate immediately.**
+          - \`no-anchor\` — the lake manifest does not match any anchor record. Could mean: (a) the most recent refresh hasn't been anchored yet, (b) the lake has been replaced with a different snapshot, (c) tampering. Check the workflow run logs and recent \`docs/dataset/manifest-*.json\` commits.
+          - \`error\` — the verifier crashed. See run logs.
+
+          ### Verifier output
+
+          \`\`\`
+          $(cat /tmp/verify-output.txt)
+          \`\`\`
+          MARKDOWN
+          )
+          gh issue create \
+            --title "Lake drift detected — $RESULT" \
+            --body "$BODY" \
+            --label drift,security
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Lake drift detector summary"
+          if [ "${{ steps.rclone-state.outputs.available }}" != "true" ]; then
+            echo "Status: SKIPPED (lean mode — no rclone secrets)."
+            exit 0
+          fi
+          echo "Status: ${{ steps.verify.outputs.result || 'unknown' }}"
+          echo "Exit code: ${{ steps.verify.outputs.verify_exit || 'unknown' }}"
