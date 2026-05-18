@@ -1,0 +1,160 @@
+name: Dataset CI
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/generate-synthetic-dataset.mjs'
+      - 'scripts/import-sjms-dataset.mjs'
+      - 'scripts/sjms-data/**'
+      - 'scripts/test/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vitest.config.mjs'
+      - '.github/workflows/dataset-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/generate-synthetic-dataset.mjs'
+      - 'scripts/sjms-data/**'
+
+concurrency:
+  group: dataset-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-determinism:
+    name: Vitest + byte-determinism check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # Promoted to job-level so the `if:` conditions on the schema-
+      # checkout step can read the secret-presence without the actual
+      # value being available in an expression context.
+      SJMS_V4_TOKEN: ${{ secrets.SJMS_V4_TOKEN }}
+
+    steps:
+      - name: Checkout SJMS-5
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # The generator targets the Prisma schema in the private sibling
+      # repo RJK134/sjms-v4-integrated. CI clones it as a sibling
+      # directory so `path.resolve(repo, '..', 'sjms-v4-integrated', ...)`
+      # works the same as locally.
+      #
+      # Set the repo secret `SJMS_V4_TOKEN` to a fine-grained PAT scoped
+      # to `Contents: read` on sjms-v4-integrated to enable the
+      # schema-dependent checks. Without it, this step is skipped and
+      # the workflow continues with the schema-independent guards only.
+      - name: Clone sjms-v4-integrated (schema) as sibling
+        id: schema-state
+        run: |
+          set +e
+          if [ -z "${SJMS_V4_TOKEN:-}" ]; then
+            echo "::warning::SJMS_V4_TOKEN secret not configured — schema-dependent checks skipped. Set the secret to enable full CI."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Clone as a sibling so path.resolve(repo, '..', 'sjms-v4-integrated', ...) resolves correctly.
+          git clone --depth 1 \
+            "https://x-access-token:${SJMS_V4_TOKEN}@github.com/RJK134/sjms-v4-integrated.git" \
+            "$GITHUB_WORKSPACE/../sjms-v4-integrated"
+          clone_exit=$?
+          if [ $clone_exit -ne 0 ] || [ ! -f "$GITHUB_WORKSPACE/../sjms-v4-integrated/prisma/schema.prisma" ]; then
+            echo "::warning::sjms-v4-integrated clone failed (exit $clone_exit) — schema-dependent checks skipped."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "Schema cloned at $GITHUB_WORKSPACE/../sjms-v4-integrated/prisma/schema.prisma"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Reject unresolved merge-conflict markers
+        run: |
+          set -euo pipefail
+          if grep -rnE '^(<<<<<<<|=======|>>>>>>>)' scripts/ docs/ 2>/dev/null; then
+            echo "::error::Unresolved git merge-conflict markers found above."
+            exit 1
+          fi
+          echo "OK — no conflict markers."
+
+      - name: Run schema-independent unit tests
+        run: |
+          pnpm exec vitest run \
+            scripts/test/rng.test.mjs \
+            scripts/test/csv-writer.test.mjs \
+            scripts/test/domain-map.test.mjs
+
+      - name: Run schema-dependent tests (skipped without SJMS_V4_TOKEN)
+        if: steps.schema-state.outputs.available == 'true'
+        run: |
+          pnpm exec vitest run \
+            scripts/test/schema.test.mjs \
+            scripts/test/d2-foundation.test.mjs \
+            scripts/test/generate.integration.test.mjs
+
+      - name: Generate snapshot A (--scale 0.05, seed ci-determinism)
+        if: steps.schema-state.outputs.available == 'true'
+        run: |
+          rm -rf output/ci-a
+          SJMS_DATASET_SEED=ci-determinism \
+            node scripts/generate-synthetic-dataset.mjs \
+              --out output/ci-a --scale 0.05 --seed ci-determinism
+
+      - name: Generate snapshot B (same flags, fresh process)
+        if: steps.schema-state.outputs.available == 'true'
+        run: |
+          rm -rf output/ci-b
+          SJMS_DATASET_SEED=ci-determinism \
+            node scripts/generate-synthetic-dataset.mjs \
+              --out output/ci-b --scale 0.05 --seed ci-determinism
+
+      - name: Hash-compare every CSV (byte-identical or fail)
+        if: steps.schema-state.outputs.available == 'true'
+        run: |
+          set -euo pipefail
+          # Normalise manifest.json (drops wall-clock timestamps) before
+          # hashing — those fields are expected to differ across runs.
+          for d in output/ci-a output/ci-b; do
+            jq 'del(.generatedAt, .finishedAt)' "$d/manifest.json" \
+              > "$d/manifest.normalised.json"
+          done
+          cd output
+          a_hash=$(find ci-a -type f \( -name '*.csv' -o -name 'manifest.normalised.json' \) \
+                   | sort | xargs sha256sum | awk '{print $1}' | sha256sum | awk '{print $1}')
+          b_hash=$(find ci-b -type f \( -name '*.csv' -o -name 'manifest.normalised.json' \) \
+                   | sort | xargs sha256sum | awk '{print $1}' | sha256sum | awk '{print $1}')
+          echo "Snapshot A composite hash: $a_hash"
+          echo "Snapshot B composite hash: $b_hash"
+          if [ "$a_hash" != "$b_hash" ]; then
+            echo "::error::Byte-determinism check failed — same seed produced different output."
+            echo "First differing files:"
+            diff -rq ci-a ci-b | head -20
+            exit 1
+          fi
+          echo "OK — byte-identical across reruns."
+
+      - name: Upload sample snapshot manifest
+        if: steps.schema-state.outputs.available == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-manifest-${{ github.sha }}
+          path: output/ci-a/manifest.json
+          retention-days: 14
