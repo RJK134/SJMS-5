@@ -1,0 +1,203 @@
+name: Weekly snapshot refresh
+
+# Generates a fresh dataset snapshot every Monday morning (06:00 UTC),
+# mirroring Workhorse's CSV-export cadence. The CSVs are uploaded as a
+# 30-day workflow artifact and the manifest is committed back to the
+# repo on a fresh branch + PR. Merging that PR triggers the audit-anchor
+# workflow which publishes the new hashes to the public gist.
+#
+# Manual lake push (operator):
+#   1. Download the workflow's `dataset-snapshot-<DATE>` artifact.
+#   2. `rclone sync <local-dir>/ gdrive5tb:sjms-5-dataset/<DATE>/`
+#   3. `rclone sync <local-dir>/ gdrive5tb:sjms-5-dataset/latest/`
+#
+# Auto lake push (future): wire RCLONE_CONFIG_GDRIVE5TB_* secrets and
+# add an `rclone sync` step at the bottom. Requires a service account
+# with write access to gdrive5tb:sjms-5-dataset/.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      date_override:
+        description: 'Override snapshot date (YYYY-MM-DD, default = today UTC)'
+        required: false
+        type: string
+      seed_override:
+        description: 'Override RNG seed (default = YYYY-MM)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: scheduled-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Generate + manifest PR + artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SJMS_V4_TOKEN: ${{ secrets.SJMS_V4_TOKEN }}
+
+    steps:
+      - name: Checkout SJMS-5
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse to run without SJMS_V4_TOKEN
+        run: |
+          if [ -z "${SJMS_V4_TOKEN:-}" ]; then
+            echo "::error::SJMS_V4_TOKEN secret required (Contents: read on sjms-v4-integrated)."
+            exit 1
+          fi
+
+      - name: Clone sjms-v4-integrated (schema) as sibling
+        run: |
+          set -euo pipefail
+          git clone --depth 1 \
+            "https://x-access-token:${SJMS_V4_TOKEN}@github.com/RJK134/sjms-v4-integrated.git" \
+            "$GITHUB_WORKSPACE/../sjms-v4-integrated"
+          test -f "$GITHUB_WORKSPACE/../sjms-v4-integrated/prisma/schema.prisma"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve snapshot date + seed
+        id: resolve
+        env:
+          DATE_OVERRIDE: ${{ github.event.inputs.date_override }}
+          SEED_OVERRIDE: ${{ github.event.inputs.seed_override }}
+        run: |
+          set -euo pipefail
+          DATE="${DATE_OVERRIDE:-$(date -u +%Y-%m-%d)}"
+          SEED="${SEED_OVERRIDE:-$(echo "$DATE" | cut -c1-7)}"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "seed=$SEED" >> "$GITHUB_OUTPUT"
+          echo "Snapshot date: $DATE  seed: $SEED"
+
+      - name: Generate snapshot
+        env:
+          DATE: ${{ steps.resolve.outputs.date }}
+          SEED: ${{ steps.resolve.outputs.seed }}
+        run: |
+          set -euo pipefail
+          mkdir -p "output/$DATE"
+          SJMS_DATASET_SEED="$SEED" \
+            node scripts/generate-synthetic-dataset.mjs \
+              --out "output/$DATE" --seed "$SEED"
+          jq '{totalTables, totalRows, schemaHash}' "output/$DATE/manifest.json"
+
+      - name: Upload snapshot as 30-day artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-snapshot-${{ steps.resolve.outputs.date }}
+          path: output/${{ steps.resolve.outputs.date }}/
+          retention-days: 30
+          compression-level: 6
+
+      - name: Decide whether to open snapshot PR
+        id: stage
+        env:
+          DATE: ${{ steps.resolve.outputs.date }}
+        run: |
+          set -euo pipefail
+          DEST="docs/dataset/manifest-$DATE.json"
+          if [ -f "$DEST" ] && cmp -s \
+              <(jq -S 'del(.generatedAt, .finishedAt, .generatorCommit)' "$DEST") \
+              <(jq -S 'del(.generatedAt, .finishedAt, .generatorCommit)' "output/$DATE/manifest.json"); then
+            echo "::notice::Manifest content unchanged from existing $DEST — skipping PR."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            cp "output/$DATE/manifest.json" "$DEST"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "dest=$DEST" >> "$GITHUB_OUTPUT"
+            echo "Staged $DEST"
+          fi
+
+      - name: Compose PR body
+        if: steps.stage.outputs.skip != 'true'
+        id: body
+        env:
+          DATE: ${{ steps.resolve.outputs.date }}
+          SEED: ${{ steps.resolve.outputs.seed }}
+          DEST: ${{ steps.stage.outputs.dest }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TT=$(jq -r .totalTables "$DEST")
+          TR=$(jq -r .totalRows "$DEST" | xargs printf "%'d")
+          SH=$(jq -r .schemaHash "$DEST")
+          BODY=$(cat <<MARKDOWN
+          Automated weekly snapshot refresh.
+
+          ## Headline
+          - **Date**: $DATE
+          - **Seed**: $SEED
+          - **Total tables**: $TT
+          - **Total rows**: $TR
+          - **Schema hash**: \`$SH\`
+
+          ## What's in this PR
+          Just the new \`$DEST\`. The CSVs (~800 MB) are in the workflow's \`dataset-snapshot-$DATE\` artifact, retained for 30 days. Find it at:
+
+          https://github.com/$REPO/actions/runs/$RUN_ID
+
+          ## Operator lake push
+          \`\`\`sh
+          gh run download $RUN_ID --name dataset-snapshot-$DATE -D /tmp/snapshot-$DATE
+          rclone sync /tmp/snapshot-$DATE/ gdrive5tb:sjms-5-dataset/$DATE/
+          rclone sync /tmp/snapshot-$DATE/ gdrive5tb:sjms-5-dataset/latest/
+          \`\`\`
+
+          ## Audit anchor
+          Merging this PR triggers \`dataset-audit-anchor.yml\`, which appends a new record to the public anchor gist (\`AUDIT_ANCHOR_GIST_ID\` repo variable).
+
+          🤖 Generated by scheduled-refresh.yml
+          MARKDOWN
+          )
+          # Write to file rather than GITHUB_OUTPUT to avoid escaping the
+          # multi-line body. Step that opens the PR reads from this path.
+          printf '%s\n' "$BODY" > /tmp/pr-body.md
+          echo "tt=$TT" >> "$GITHUB_OUTPUT"
+          echo "tr=$TR" >> "$GITHUB_OUTPUT"
+
+      - name: Open snapshot PR
+        if: steps.stage.outputs.skip != 'true'
+        env:
+          DATE: ${{ steps.resolve.outputs.date }}
+          SEED: ${{ steps.resolve.outputs.seed }}
+          DEST: ${{ steps.stage.outputs.dest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/snapshot-$DATE"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git checkout -b "$BRANCH"
+          git add "$DEST"
+          git commit -m "chore(snapshot): add manifest for $DATE refresh"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore(snapshot): $DATE weekly refresh" \
+            --body-file /tmp/pr-body.md

@@ -38,14 +38,26 @@ scripts/refresh-snapshot.sh 2026-05-17  # date pinned
 
 ## Weekly refresh cadence
 
-`scripts/refresh-snapshot.sh` is the one-shot wrapper that regenerates
-and pushes a snapshot to `gdrive5tb:sjms-5-dataset/<DATE>/` plus the
-`/latest/` mirror. It is intended to run weekly (Monday morning) via
-the `/schedule` remote routine — the same cadence Workhorse uses for
-its CSV exports, so downstream consumers (Maieus2, Shakespeare-is-Boring,
-MCM) see a consistent refresh window across both lakes.
+Two complementary mechanisms drive the weekly refresh:
 
-The script:
+1. **`.github/workflows/scheduled-refresh.yml`** — runs on the GitHub
+   runner every Monday at 06:00 UTC (and via `workflow_dispatch`). It
+   regenerates the snapshot, uploads the CSVs as a 30-day artifact,
+   and opens a PR adding `docs/dataset/manifest-<DATE>.json`. Merging
+   that PR triggers `dataset-audit-anchor.yml` which publishes the
+   new hashes to the public gist. The operator then downloads the
+   artifact and runs `rclone sync` locally to update the lake. (Wire
+   `RCLONE_CONFIG_GDRIVE5TB_*` secrets if you want the runner to push
+   directly.)
+2. **`scripts/refresh-snapshot.sh`** — local wrapper for off-cycle
+   manual refreshes. Regenerates AND pushes to the lake in one step.
+   Requires `rclone` with the `gdrive5tb:` remote configured.
+
+Monday 06:00 UTC matches Workhorse's CSV-export cadence, so downstream
+consumers (Maieus2, Shakespeare-is-Boring, MCM) see a single refresh
+window across both lakes.
+
+The local script:
 
 1. Verifies `rclone` has the `gdrive5tb:` remote configured.
 2. Runs `pnpm install --frozen-lockfile` then the generator.
