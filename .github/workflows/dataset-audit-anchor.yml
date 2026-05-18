@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Need depth >= 2 so `git diff-tree -r HEAD` has the parent
           # commit available to diff against. With depth=1 the workflow
