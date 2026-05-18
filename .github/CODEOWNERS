@@ -1,4 +1,4 @@
-# SJMS 2.5 — Code owners
+# SJMS-5 — Code owners
 #
 # Every file in this repository has an implicit default owner
 # (`RJK134`) through the catch-all at the top of the list. Subsequent
@@ -7,54 +7,63 @@
 # explicit code-owner review when the branch protection rule
 # "Require review from Code Owners" is enabled.
 #
+# Bus-factor (deep-review P0 #6, closed via Phase 0 batch 0K):
+# every owner line names BOTH `@RJK134` and `@SECOND_OWNER`. The latter
+# is a deliberate placeholder. Operator action required before Phase 1
+# closes: search-and-replace `@SECOND_OWNER` for the agreed second
+# reviewer's GitHub login. The branch-protection rule "Require 2
+# reviewers including code-owners" (mandated from Phase 0 close per
+# docs/operations/ci-and-branch-protection.md §2) is honestly met only
+# after that replacement.
+#
 # See: https://docs.github.com/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
 
 # --- Default owner ---------------------------------------------------
 
-*                                                   @RJK134
+*                                                   @RJK134 @SECOND_OWNER
 
 # --- Governance and delivery control set -----------------------------
 
-/CLAUDE.md                                          @RJK134
-/.claude/CLAUDE.md                                  @RJK134
-/docs/BUILD-QUEUE.md                                @RJK134
-/docs/KNOWN_ISSUES.md                               @RJK134
-/docs/VERIFICATION-PROTOCOL.md                      @RJK134
-/docs/delivery-plan/**                              @RJK134
+/CLAUDE.md                                          @RJK134 @SECOND_OWNER
+/.claude/CLAUDE.md                                  @RJK134 @SECOND_OWNER
+/docs/BUILD-QUEUE.md                                @RJK134 @SECOND_OWNER
+/docs/KNOWN_ISSUES.md                               @RJK134 @SECOND_OWNER
+/docs/VERIFICATION-PROTOCOL.md                      @RJK134 @SECOND_OWNER
+/docs/delivery-plan/**                              @RJK134 @SECOND_OWNER
 
 # --- CI / CD / Security tooling --------------------------------------
 
-/.github/workflows/**                               @RJK134
-/.github/dependabot.yml                             @RJK134
-/.github/CODEOWNERS                                 @RJK134
-/.github/pull_request_template.md                   @RJK134
-/SECURITY.md                                        @RJK134
+/.github/workflows/**                               @RJK134 @SECOND_OWNER
+/.github/dependabot.yml                             @RJK134 @SECOND_OWNER
+/.github/CODEOWNERS                                 @RJK134 @SECOND_OWNER
+/.github/pull_request_template.md                   @RJK134 @SECOND_OWNER
+/SECURITY.md                                        @RJK134 @SECOND_OWNER
 
 # --- Authentication and authorisation --------------------------------
 
-/server/src/middleware/auth.ts                      @RJK134
-/server/src/middleware/data-scope.ts                @RJK134
-/server/src/constants/roles.ts                      @RJK134
+/server/src/middleware/auth.ts                      @RJK134 @SECOND_OWNER
+/server/src/middleware/data-scope.ts                @RJK134 @SECOND_OWNER
+/server/src/constants/roles.ts                      @RJK134 @SECOND_OWNER
 
 # --- Data model and migrations ---------------------------------------
 
-/prisma/schema.prisma                               @RJK134
-/prisma/migrations/**                               @RJK134
+/prisma/schema.prisma                               @RJK134 @SECOND_OWNER
+/prisma/migrations/**                               @RJK134 @SECOND_OWNER
 
 # --- Deployment surface (TLS, CSP, CORS, nginx) ----------------------
 
-/docker/nginx/**                                    @RJK134
-/docker/docker-compose.prod.yml                     @RJK134
-/docker-compose.yml                                 @RJK134
+/docker/nginx/**                                    @RJK134 @SECOND_OWNER
+/docker/docker-compose.prod.yml                     @RJK134 @SECOND_OWNER
+/docker-compose.yml                                 @RJK134 @SECOND_OWNER
 
 # --- Webhook and event contract --------------------------------------
 
-/server/src/utils/webhooks.ts                       @RJK134
-/server/src/workflows/**                            @RJK134
+/server/src/utils/webhooks.ts                       @RJK134 @SECOND_OWNER
+/server/src/workflows/**                            @RJK134 @SECOND_OWNER
 
 # --- Governance policy-as-code ---------------------------------------
 
-/GOVERNANCE.md                                      @RJK134
-/docs/governance/**                                 @RJK134
-/scripts/governance/**                              @RJK134
-/evidence/**                                        @RJK134
+/GOVERNANCE.md                                      @RJK134 @SECOND_OWNER
+/docs/governance/**                                 @RJK134 @SECOND_OWNER
+/scripts/governance/**                              @RJK134 @SECOND_OWNER
+/evidence/**                                        @RJK134 @SECOND_OWNER

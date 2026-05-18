@@ -1,23 +1,31 @@
 {
   "$schema": "internal://sjms/branch-protection/v1",
-  "_comment_owner": "Codified branch-protection policy for the default branch (main) of RJK134/SJMS-2.5. The GOVERNANCE.md document is the human-readable explanation; this file is the machine-readable source of truth that .github/workflows/governance-drift.yml diffs against the live config.",
+  "_comment_owner": "Codified branch-protection policy for the default branch (main) of RJK134/SJMS-5. The GOVERNANCE.md document is the human-readable explanation; this file is the machine-readable source of truth that .github/workflows/governance-drift.yml diffs against the live config.",
   "_comment_format": "Shape mirrors the request body of the GitHub REST endpoint PUT /repos/{owner}/{repo}/branches/{branch}/protection. See https://docs.github.com/en/rest/branches/branch-protection. The drift workflow normalises the live response to this shape before diffing.",
-  "_comment_apply": "Apply with: gh api -X PUT -H 'Accept: application/vnd.github+json' /repos/RJK134/SJMS-2.5/branches/main/protection --input scripts/governance/protection.json. Requires admin scope on the repository. NOTE: see _comment_required_signatures below — `required_signatures` requires a separate API call documented in docs/governance/branch-protection.md.",
+  "_comment_apply": "Apply with: gh api -X PUT -H 'Accept: application/vnd.github+json' /repos/RJK134/SJMS-5/branches/main/protection --input scripts/governance/protection.json. Requires admin scope on the repository. NOTE: see _comment_required_signatures below — `required_signatures` requires a separate API call documented in docs/governance/branch-protection.md.",
   "_comment_required_signatures": "GitHub does NOT accept `required_signatures` in the PUT body of /branches/{branch}/protection. The field is included here as the desired state (so the drift workflow can verify it against the GET response, which surfaces required_signatures.enabled), but enabling/disabling signed commits requires a separate POST /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures (or DELETE to disable). The two-step apply is documented in docs/governance/branch-protection.md §Apply. If this codified policy says `true` and the live config reports `false`, the drift workflow will (correctly) report drift until an admin runs the second step.",
+  "_comment_phase_0k": "Tightened in Phase 0 batch 0K (closes deep-review P0 #1 + P0 #6). Changes from SJMS-2.5 baseline: required_approving_review_count 1 → 2 (bus-factor); required_status_checks.contexts expanded to include Trivy + SBOM + npm audit + the per-workspace quality gates. CODEOWNERS now names @RJK134 + @SECOND_OWNER on every line — the require_code_owner_reviews + 2-reviewer rule is honestly met only after @SECOND_OWNER resolves to a real GitHub login.",
   "branch": "main",
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "Quality gate",
+      "Docs truth check",
+      "Server quality gate",
+      "Client quality gate",
       "governance-drift",
-      "GitGuardian Security Checks"
+      "GitGuardian Security Checks",
+      "Analyze javascript-typescript",
+      "Trivy — API image",
+      "Trivy — client image",
+      "Generate CycloneDX SBOM (root + server + client)",
+      "npm audit"
     ]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
     "require_code_owner_reviews": true,
-    "required_approving_review_count": 1,
+    "required_approving_review_count": 2,
     "require_last_push_approval": true
   },
   "required_signatures": true,
