@@ -1,35 +1,48 @@
 #!/usr/bin/env node
 /**
- * SJMS-5 dataset importer — scaffold.
+ * SJMS-5 dataset importer.
  *
- * Mirrors the Maieus2 datalake importer pattern (PR #94 / PR #99):
- *   1. Walk a snapshot folder in lake order.
- *   2. Validate the snapshot's manifest against the compiled schema hash.
- *   3. Refuse FORBIDDEN_COLUMNS at parse time.
- *   4. Upsert each table in topological order.
- *   5. Emit one `dataset.imported` audit event with the snapshot manifest.
+ * Walks a snapshot folder in topological order, validates each CSV, and
+ * (under --persist) upserts every row into the SJMS-5 Prisma database.
+ *
+ * Pipeline:
+ *   1. Resolve --source (local dir, or rclone remote that gets synced to a tmp dir).
+ *   2. Load the snapshot's manifest.json and verify the FORBIDDEN_COLUMNS gate.
+ *   3. Parse the SJMS-5 Prisma schema (default: ./prisma/schema.prisma) and
+ *      classify dataset tables as "covered" (model exists, CSV header is
+ *      shape-compatible) or "skipped" (model missing, or required field
+ *      missing from CSV). Skipped tables are logged but never imported.
+ *   4. Walk the covered tables in the dataset's domain-by-domain
+ *      TOPOLOGICAL_ORDER and upsert in batches inside a single Prisma
+ *      transaction per batch.
+ *   5. Emit a single `dataset.imported` AuditLog row at the end.
+ *
+ * Schema convergence note: the dataset targets `sjms-v4-integrated`
+ * (298 models). SJMS-5 carries the smaller 196-model SJMS-2.5 schema.
+ * The overlap is most of the SJMS-5 schema; the diff is logged at the
+ * top of every run. Schema convergence proper is a Phase 12 concern
+ * (KI-S5-202).
  *
  * Usage:
- *   node scripts/import-sjms-dataset.mjs --source gdrive5tb:sjms-5-dataset/latest/
- *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17/
- *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17/ --batch 1000
+ *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --dry-run
+ *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --persist
+ *   node scripts/import-sjms-dataset.mjs --source gdrive5tb:sjms-5-dataset/latest/ --persist
  *
- * **Status: scaffold only.** The upsert calls require SJMS-5's Prisma client
- * which doesn't exist yet — that arrives with Phase 0 of SJMS-5 (the spine
- * import). Until then, the importer validates the snapshot structure,
- * verifies manifest integrity, performs the FORBIDDEN_COLUMNS check, and
- * prints a dry-run plan listing the tables it would upsert and in what
- * order. Wire the live Prisma client in at the marked TODOs once the
- * schema exists.
+ * --persist requires DATABASE_URL to be set and the database to be
+ * migrated to the SJMS-5 schema. Without --persist, the importer runs
+ * in plan + validate mode and never opens a Prisma connection.
  */
 
-import { readFile, readdir, mkdtemp, rm, stat, open } from 'node:fs/promises';
+import { readFile, mkdtemp, rm, stat } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { TOPOLOGICAL_ORDER, modelsByDomain } from './sjms-data/lib/domain-map.mjs';
 import { parsePrismaSchema } from './sjms-data/lib/schema.mjs';
+import { readCsvRows, readCsvHeader } from './sjms-data/lib/csv-reader.mjs';
+import { coerceRow } from './sjms-data/lib/type-coerce.mjs';
 
 const FORBIDDEN_COLUMNS = new Set([
   'body', 'questionText', 'question_text', 'markScheme', 'mark_scheme',
@@ -37,12 +50,23 @@ const FORBIDDEN_COLUMNS = new Set([
   'modelAnswer', 'model_answer', 'examPaperText', 'exam_paper_text',
 ]);
 
-function parseArgs(argv) {
-  const args = { source: null, batch: 500, dryRun: false, schemaPath: null };
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEFAULT_SCHEMA = path.resolve(__dirname, '..', 'prisma', 'schema.prisma');
+
+export function parseArgs(argv) {
+  const args = {
+    source: null,
+    batch: 500,
+    persist: false,
+    dryRun: false,
+    schemaPath: DEFAULT_SCHEMA,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--source') args.source = argv[++i];
     else if (a === '--batch') args.batch = parseInt(argv[++i], 10);
+    else if (a === '--persist') args.persist = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--schema') args.schemaPath = argv[++i];
     else if (a === '-h' || a === '--help') {
@@ -54,27 +78,34 @@ function parseArgs(argv) {
     process.stderr.write('--source is required (gdrive5tb:.../latest/ or a local directory)\n');
     process.exit(1);
   }
+  if (args.persist && args.dryRun) {
+    process.stderr.write('--persist and --dry-run are mutually exclusive\n');
+    process.exit(1);
+  }
   return args;
 }
 
 function helpText() {
-  return `SJMS-5 dataset importer (scaffold)
+  return `SJMS-5 dataset importer
 
-Usage: node scripts/import-sjms-dataset.mjs --source <path-or-rclone-url>
+Usage: node scripts/import-sjms-dataset.mjs --source <path-or-rclone-url> [flags]
 
-  --source <path>     Local directory OR rclone remote (gdrive5tb:...)
-  --schema <path>     Compiled Prisma schema (default: ../sjms-v4-integrated/prisma/schema.prisma)
+  --source <path>     Local directory OR rclone remote (gdrive5tb:...). Required.
+  --schema <path>     Target Prisma schema (default: ./prisma/schema.prisma)
+  --persist           Actually upsert rows. Requires DATABASE_URL.
+                      Without this, only plan + validate; never opens a DB connection.
   --batch <n>         Upsert batch size (default 500)
-  --dry-run           Validate snapshot and print plan; do not upsert
+  --dry-run           Explicit no-write mode (alias for omitting --persist)
   -h, --help          This text
 
-Phase 0 of SJMS-5 must be live before the upsert calls work — until then
-this is dry-run only.`;
+The importer is idempotent: re-running over the same snapshot upserts
+the same rows. Run with --dry-run first to verify coverage and shape
+before committing.`;
 }
 
 async function syncFromRclone(remote) {
   const dir = await mkdtemp(path.join(tmpdir(), 'sjms5-import-'));
-  process.stdout.write(`Pulling ${remote} → ${dir} …\n`);
+  process.stdout.write(`Pulling ${remote} -> ${dir} ...\n`);
   await new Promise((resolve, reject) => {
     const child = spawn('rclone', ['sync', remote, dir, '--progress'], { stdio: 'inherit' });
     child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`rclone exit ${code}`)));
@@ -87,52 +118,16 @@ async function loadManifest(dir) {
   return JSON.parse(raw);
 }
 
-async function verifyManifest(manifest, schemaPath) {
-  const { schemaHash: actualHash } = manifest;
-  // The schema-hash check would compare against the compiled Prisma schema hash.
-  // For now we just emit a warning if the SJMS-5 schema isn't reachable.
+async function describeManifest(manifest, schemaModelCount) {
   process.stdout.write(`Manifest:  generated ${manifest.generatedAt}\n`);
   process.stdout.write(`           seed ${manifest.seed}\n`);
   process.stdout.write(`           ${manifest.totalTables} tables / ${manifest.totalRows.toLocaleString()} rows\n`);
-  process.stdout.write(`           schemaHash ${actualHash}\n`);
-  try {
-    const schema = await parsePrismaSchema(schemaPath);
-    process.stdout.write(`           schema reachable: ${schema.models.size} models\n`);
-    if (schema.models.size !== manifest.schemaModels) {
-      process.stdout.write(`           WARN: schema model count differs (${schema.models.size} vs ${manifest.schemaModels})\n`);
-    }
-  } catch (err) {
-    process.stdout.write(`           WARN: schema not reachable (${err.message}) — running in shape-only mode\n`);
+  process.stdout.write(`           dataset schemaHash ${manifest.schemaHash}\n`);
+  process.stdout.write(`           dataset schemaModels ${manifest.schemaModels}\n`);
+  process.stdout.write(`           SJMS-5 schema models ${schemaModelCount}\n`);
+  if (manifest.schemaModels !== schemaModelCount) {
+    process.stdout.write(`           NOTE: model count differs (dataset ${manifest.schemaModels} vs SJMS-5 ${schemaModelCount}) — schema convergence is a Phase 12 concern; missing tables will be skipped\n`);
   }
-}
-
-async function planUpsertOrder(dir, manifest, schemaPath) {
-  // The topological order is encoded in the generator's domain-map. The importer
-  // walks the same order so FK targets always exist before referencing rows.
-  //
-  // Table names use the Prisma schema's @@map directive (e.g. User → users)
-  // — we read them from the parsed schema rather than guessing via snake-case.
-  let modelToTable = new Map();
-  try {
-    const schema = await parsePrismaSchema(schemaPath);
-    for (const [name, model] of schema.models) {
-      modelToTable.set(name, model.tableMap ?? toSnakeCase(name));
-    }
-  } catch {
-    // Schema not reachable — fall back to snake-case lookup.
-    for (const m of Object.keys(manifest.rowCounts ?? {})) modelToTable.set(m, m);
-  }
-
-  const order = [];
-  for (const domain of TOPOLOGICAL_ORDER) {
-    const domainModels = modelsByDomain().get(domain);
-    for (const m of domainModels) {
-      const table = modelToTable.get(m) ?? toSnakeCase(m);
-      const count = manifest.rowCounts[table] ?? 0;
-      order.push({ domain, model: m, table, file: `${table}.csv`, count });
-    }
-  }
-  return order;
 }
 
 function toSnakeCase(s) {
@@ -142,86 +137,190 @@ function toSnakeCase(s) {
     .toLowerCase();
 }
 
-async function readFirstLine(file) {
-  // Read up to 4KB and slice on the first newline. Sufficient for CSV header
-  // rows, which never exceed a few hundred bytes.
-  const fh = await open(file, 'r');
-  try {
-    const buf = Buffer.alloc(4096);
-    const { bytesRead } = await fh.read(buf, 0, 4096, 0);
-    const text = buf.subarray(0, bytesRead).toString('utf8');
-    const nl = text.indexOf('\n');
-    return nl >= 0 ? text.slice(0, nl) : text;
-  } finally {
-    await fh.close();
-  }
-}
+/**
+ * Walk the dataset's TOPOLOGICAL_ORDER and decide, for each dataset model,
+ * whether to upsert it against the SJMS-5 schema.
+ *
+ * Returns:
+ *   covered: tables that exist in SJMS-5 AND have a shape-compatible CSV header.
+ *   skippedNoModel: dataset CSV exists, no matching SJMS-5 model.
+ *   skippedShape: SJMS-5 model exists, but a required field is missing from the CSV header.
+ *   skippedNoCsv: dataset model exists, but the snapshot has no CSV (rowCount 0 in manifest).
+ */
+export async function classifyTables(dir, manifest, schema) {
+  const covered = [];
+  const skippedNoModel = [];
+  const skippedShape = [];
+  const skippedNoCsv = [];
 
-async function validateCsvHeaders(dir, plan) {
-  for (const entry of plan) {
-    const file = path.join(dir, entry.file);
-    try {
-      await stat(file);
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        process.stdout.write(`  MISSING: ${entry.file}\n`);
+  for (const domain of TOPOLOGICAL_ORDER) {
+    const domainModels = modelsByDomain().get(domain) ?? [];
+    for (const datasetModel of domainModels) {
+      const sjms5Model = schema.models.get(datasetModel);
+      const table = resolveTableName(datasetModel, sjms5Model, manifest);
+      const csvName = `${table}.csv`;
+      const csvPath = path.join(dir, csvName);
+      const manifestCount = manifest.rowCounts?.[table] ?? 0;
+
+      if (!sjms5Model) {
+        skippedNoModel.push({ domain, datasetModel, csvName, manifestCount });
         continue;
       }
-      throw err;
-    }
-    const headerLine = await readFirstLine(file);
-    const columns = headerLine.split(',');
-    for (const c of columns) {
-      if (FORBIDDEN_COLUMNS.has(c)) {
-        throw new Error(`Snapshot ${entry.file} contains forbidden column "${c}" — refusing to import`);
+
+      let csvExists = true;
+      try {
+        await stat(csvPath);
+      } catch (err) {
+        if (err.code === 'ENOENT') csvExists = false;
+        else throw err;
       }
+      if (!csvExists || manifestCount === 0) {
+        skippedNoCsv.push({ domain, datasetModel, csvName, manifestCount });
+        continue;
+      }
+
+      const headerCols = await readCsvHeader(csvPath);
+      for (const c of headerCols) {
+        if (FORBIDDEN_COLUMNS.has(c)) {
+          throw new Error(`Snapshot ${csvName} contains forbidden column "${c}" — refusing to import`);
+        }
+      }
+
+      const missingRequired = [];
+      for (const field of sjms5Model.fields) {
+        if (field.isOptional) continue;
+        if (field.defaultExpr !== undefined) continue;
+        if (!headerCols.includes(field.name)) missingRequired.push(field.name);
+      }
+      if (missingRequired.length > 0) {
+        skippedShape.push({
+          domain, datasetModel, table, csvName, manifestCount, missingRequired,
+        });
+        continue;
+      }
+
+      const importableFields = sjms5Model.fields.filter((f) => headerCols.includes(f.name));
+      covered.push({
+        domain, datasetModel, table, csvName, csvPath, manifestCount, importableFields,
+      });
     }
   }
+
+  return { covered, skippedNoModel, skippedShape, skippedNoCsv };
 }
 
 /**
- * TODO: replace with actual Prisma upsert when SJMS-5 schema is live.
+ * Resolve the manifest / CSV table name for a dataset model.
  *
- * Pattern (post-Phase-0):
- *
- *   import { prisma } from '@sjms-5/db';
- *
- *   await prisma.$transaction(async (tx) => {
- *     for (const row of batch) {
- *       await tx[modelName].upsert({
- *         where: { id: row.id },
- *         create: row,
- *         update: row,
- *       });
- *     }
- *   });
- *
- * After all tables import, emit the audit event:
- *
- *   await prisma.auditEvent.create({
- *     data: {
- *       action: 'dataset.imported',
- *       payload: { snapshot, manifest, counts },
- *       actor: 'system',
- *     },
- *   });
+ * Order of preference:
+ *   1. SJMS-5 model's @@map (e.g. Person -> "persons") if the SJMS-5 schema
+ *      knows the model. The dataset and SJMS-5 both descend from the same
+ *      HE-data lineage, so @@map is usually a reliable match for the CSV
+ *      filename the generator wrote.
+ *   2. The manifest's snake_case_plural form, looked up against rowCounts
+ *      (covers the "dataset has CSV, SJMS-5 has no model" case where
+ *      sjms5Model is undefined).
+ *   3. snake_case singular as the last-resort guess.
  */
-async function upsertTable(_dir, entry, _batchSize) {
-  // Scaffold: log what would happen.
-  process.stdout.write(`  PLAN: ${entry.domain.padEnd(18)} ${entry.table.padEnd(40)} ${entry.count.toLocaleString().padStart(10)} rows\n`);
+export function resolveTableName(datasetModel, sjms5Model, manifest) {
+  if (sjms5Model?.tableMap) return sjms5Model.tableMap;
+  const fallbackSingular = toSnakeCase(datasetModel);
+  const guessPlural = `${fallbackSingular}s`;
+  if (manifest?.rowCounts?.[guessPlural] !== undefined) return guessPlural;
+  if (manifest?.rowCounts?.[fallbackSingular] !== undefined) return fallbackSingular;
+  return guessPlural;
 }
 
-async function emitAuditEvent(_manifest) {
-  // TODO: write to prisma.auditEvent (post-Phase-0).
-  process.stdout.write(`  audit: would emit dataset.imported event\n`);
+function reportClassification(c) {
+  const lines = [];
+  lines.push(`\n=== Coverage report ===`);
+  lines.push(`  covered:            ${c.covered.length} tables (${sumCounts(c.covered).toLocaleString()} rows)`);
+  lines.push(`  skipped — no model: ${c.skippedNoModel.length} (dataset has CSV, SJMS-5 has no model)`);
+  lines.push(`  skipped — shape:    ${c.skippedShape.length} (SJMS-5 requires a column the CSV lacks)`);
+  lines.push(`  skipped — no csv:   ${c.skippedNoCsv.length} (SJMS-5 has model, snapshot has no rows)`);
+  if (c.skippedShape.length > 0) {
+    lines.push(`\n  Shape-incompatible tables (first 10):`);
+    for (const t of c.skippedShape.slice(0, 10)) {
+      lines.push(`    ${t.table.padEnd(40)} missing required: ${t.missingRequired.join(', ')}`);
+    }
+  }
+  process.stdout.write(lines.join('\n') + '\n');
 }
 
-async function main() {
+function sumCounts(list) {
+  return list.reduce((acc, e) => acc + (e.manifestCount ?? 0), 0);
+}
+
+export async function upsertTableLive(prisma, entry, batchSize) {
+  const { table, csvPath, importableFields, manifestCount } = entry;
+  const idField = importableFields.find((f) => f.isId);
+  if (!idField) {
+    throw new Error(`${table}: cannot upsert without an @id field`);
+  }
+  const modelDelegate = delegateFor(prisma, entry.datasetModel);
+  if (!modelDelegate) {
+    throw new Error(`${table}: Prisma client has no delegate for model "${entry.datasetModel}" — schema/client drift`);
+  }
+
+  let batch = [];
+  let line = 1;
+  let imported = 0;
+  process.stdout.write(`  PERSIST: ${entry.domain.padEnd(18)} ${table.padEnd(40)} ${manifestCount.toLocaleString().padStart(10)} rows\n`);
+
+  const flush = async () => {
+    if (batch.length === 0) return;
+    await prisma.$transaction(batch.map((row) => modelDelegate.upsert({
+      where: { [idField.name]: row[idField.name] },
+      create: row,
+      update: row,
+    })));
+    imported += batch.length;
+    batch = [];
+  };
+
+  for await (const raw of readCsvRows(csvPath)) {
+    line += 1;
+    const row = coerceRow(raw, importableFields, { table, line });
+    batch.push(row);
+    if (batch.length >= batchSize) await flush();
+  }
+  await flush();
+  return imported;
+}
+
+/**
+ * Prisma delegate names are lowerCamelCase of the model name (e.g. `Person` -> `prisma.person`).
+ * The dataset model names follow PascalCase; we lowercase the first letter.
+ */
+function delegateFor(prisma, modelName) {
+  const key = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+  return prisma[key];
+}
+
+export async function emitAuditEvent(prisma, manifest, importCounts) {
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'Dataset',
+      entityId: manifest.generatedAt ?? new Date().toISOString(),
+      action: 'CREATE',
+      userId: null,
+      userRole: 'system',
+      newData: {
+        manifest: {
+          generatedAt: manifest.generatedAt,
+          seed: manifest.seed,
+          schemaHash: manifest.schemaHash,
+          totalTables: manifest.totalTables,
+          totalRows: manifest.totalRows,
+        },
+        importCounts,
+      },
+    },
+  });
+}
+
+export async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const schemaPath = args.schemaPath ?? path.resolve(
-    path.dirname(import.meta.url.replace('file://', '')),
-    '..', '..', 'sjms-v4-integrated', 'prisma', 'schema.prisma',
-  );
 
   let dir = args.source;
   let cleanup = null;
@@ -231,25 +330,44 @@ async function main() {
   }
 
   const manifest = await loadManifest(dir);
-  await verifyManifest(manifest, schemaPath);
-  const plan = await planUpsertOrder(dir, manifest, schemaPath);
-  await validateCsvHeaders(dir, plan);
+  const schema = await parsePrismaSchema(args.schemaPath);
+  await describeManifest(manifest, schema.models.size);
 
-  process.stdout.write(`\n=== Plan (topological order) ===\n`);
-  for (const entry of plan) {
-    await upsertTable(dir, entry, args.batch);
+  const classification = await classifyTables(dir, manifest, schema);
+  reportClassification(classification);
+
+  if (!args.persist) {
+    process.stdout.write(`\n=== Plan (no --persist; no rows will be written) ===\n`);
+    for (const entry of classification.covered) {
+      process.stdout.write(
+        `  PLAN: ${entry.domain.padEnd(18)} ${entry.table.padEnd(40)} ${entry.manifestCount.toLocaleString().padStart(10)} rows\n`,
+      );
+    }
+    process.stdout.write(`\nScaffold complete. ${classification.covered.length} tables planned, ${classification.skippedNoModel.length + classification.skippedShape.length + classification.skippedNoCsv.length} skipped.\n`);
+    if (cleanup) await rm(cleanup, { recursive: true, force: true });
+    return;
   }
-  await emitAuditEvent(manifest);
 
-  process.stdout.write(`\nScaffold complete. ${plan.length} tables planned.\n`);
-  if (cleanup) await rm(cleanup, { recursive: true, force: true });
-
-  if (args.dryRun) return;
-  process.stdout.write(`\nNote: upsert calls are scaffolded. Wire @sjms-5/db Prisma client at the\n`);
-  process.stdout.write(`marked TODOs once Phase 0 of SJMS-5 produces the schema.\n`);
+  // Persist path — load Prisma client lazily so plan mode never needs it.
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+  const importCounts = {};
+  try {
+    process.stdout.write(`\n=== Upsert (live) ===\n`);
+    for (const entry of classification.covered) {
+      importCounts[entry.table] = await upsertTableLive(prisma, entry, args.batch);
+    }
+    await emitAuditEvent(prisma, manifest, importCounts);
+    process.stdout.write(`\nImport complete. ${classification.covered.length} tables, ${Object.values(importCounts).reduce((a, b) => a + b, 0).toLocaleString()} rows upserted.\n`);
+  } finally {
+    await prisma.$disconnect();
+    if (cleanup) await rm(cleanup, { recursive: true, force: true });
+  }
 }
 
-main().catch((err) => {
-  process.stderr.write(`\nFATAL: ${err.message}\n${err.stack}\n`);
-  process.exit(1);
-});
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    process.stderr.write(`\nFATAL: ${err.message}\n${err.stack}\n`);
+    process.exit(1);
+  });
+}

@@ -132,5 +132,41 @@ for the full rationale.
 
 The generator targets `RJK134/sjms-v4-integrated/prisma/schema.prisma`
 @ HEAD (298 models as of 2026-05-17). The manifest records the schema
-hash; importers refuse a snapshot whose schema hash does not match
-their compiled schema.
+hash so the dataset side stays deterministic.
+
+The SJMS-5 importer (`scripts/import-sjms-dataset.mjs`) does **not**
+require the dataset's schema hash to match SJMS-5's schema hash. They
+come from different repos by design: the dataset is generated against
+v4-integrated (298 models), SJMS-5 carries the smaller SJMS-2.5 schema
+(196 models). The importer classifies dataset tables into four buckets:
+
+| Bucket | Meaning |
+|---|---|
+| covered | SJMS-5 has the model AND the CSV header lists every required (no-default) field. Imported. |
+| skipped — no model | Dataset has the CSV; SJMS-5 has no matching Prisma model. Logged, not imported. |
+| skipped — shape | SJMS-5 has the model but the CSV is missing one or more required fields. Logged with the missing-fields list. |
+| skipped — no csv | SJMS-5 has the model; the snapshot has no rows for it. Logged silently. |
+
+The shape-incompatibility list is the Phase 12 schema-convergence
+checklist (KI-S5-202) — those tables are what a future convergence pass
+needs to reconcile before they can flow from the lake into SJMS-5.
+
+## Importing into SJMS-5
+
+```sh
+# Plan only (no DB connection — safe to run anywhere):
+node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --dry-run
+
+# Live persist (requires DATABASE_URL pointing at a migrated SJMS-5 DB):
+DATABASE_URL=postgres://... \
+  node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --persist
+
+# From the lake:
+DATABASE_URL=postgres://... \
+  node scripts/import-sjms-dataset.mjs \
+    --source gdrive5tb:sjms-5-dataset/latest/ --persist
+```
+
+The importer is idempotent: re-running over the same snapshot upserts
+the same rows (matched by `@id`). A single `AuditLog` row is written
+at the end of a successful `--persist` run.
