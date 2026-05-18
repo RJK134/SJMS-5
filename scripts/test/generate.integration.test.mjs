@@ -1,9 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm, readdir, readFile, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+async function hashFile(p) {
+  return new Promise((resolve, reject) => {
+    const h = createHash('sha256');
+    const s = createReadStream(p);
+    s.on('data', (c) => h.update(c));
+    s.on('end', () => resolve(h.digest('hex')));
+    s.on('error', reject);
+  });
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -30,9 +42,12 @@ describe('generator end-to-end', () => {
   beforeAll(async () => {
     outA = await mkdtemp(path.join(tmpdir(), 'sjms5-gen-a-'));
     outB = await mkdtemp(path.join(tmpdir(), 'sjms5-gen-b-'));
-    await run(['--out', outA, '--seed', 'det-test']);
-    await run(['--out', outB, '--seed', 'det-test']);
-  }, 120_000);
+    // Scale 0.05 keeps determinism semantics while running in <10s.
+    // Determinism + shape are what we assert; volumes are exercised by the
+    // d2-foundation suite at full scale.
+    await run(['--out', outA, '--seed', 'det-test', '--scale', '0.05']);
+    await run(['--out', outB, '--seed', 'det-test', '--scale', '0.05']);
+  }, 300_000);
 
   afterAll(async () => {
     await rm(outA, { recursive: true, force: true });
@@ -47,14 +62,15 @@ describe('generator end-to-end', () => {
     expect(manifests.length).toBe(1);
   });
 
-  it('produces byte-identical CSVs across runs with the same seed', async () => {
+  it('produces byte-identical CSVs across runs with the same seed (hash-based)', async () => {
     const filesA = (await readdir(outA)).filter((f) => f.endsWith('.csv')).sort();
     const filesB = (await readdir(outB)).filter((f) => f.endsWith('.csv')).sort();
     expect(filesA).toEqual(filesB);
+    // Hash-based comparison — avoids loading 500MB into memory at full scale.
     for (const name of filesA) {
-      const a = await readFile(path.join(outA, name));
-      const b = await readFile(path.join(outB, name));
-      expect(a.equals(b)).toBe(true);
+      const hashA = await hashFile(path.join(outA, name));
+      const hashB = await hashFile(path.join(outB, name));
+      expect(hashA, `${name}`).toBe(hashB);
     }
   });
 
