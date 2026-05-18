@@ -75,7 +75,7 @@ export const FACULTIES = [
       { name: 'Pharmacy', code: 'PHR', hecos: '100380' },
       { name: 'Public Health', code: 'PUH', hecos: '100476' },
       { name: 'Physiotherapy', code: 'PTY', hecos: '100388' },
-      { name: 'Biology', code: 'BIO', hecos: '100091' },
+      { name: 'Biology', code: 'BIO', hecos: '100346' },
     ],
   },
   {
@@ -117,7 +117,7 @@ export const FACULTIES = [
       { name: 'Art & Design', code: 'ART', hecos: '100076' },
       { name: 'Drama & Performance', code: 'DRA', hecos: '100264' },
       { name: 'Digital Media Production', code: 'DMP', hecos: '100366' },
-      { name: 'Games Design & Development', code: 'GMD', hecos: '100367' },
+      { name: 'Games Design & Development', code: 'GMD', hecos: '100366' },
     ],
   },
 ];

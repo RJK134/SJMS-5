@@ -86,7 +86,6 @@ const HECOS_CODES = [
   ['100223', 'Engineering (non-specific)'], ['100148', 'Civil engineering'],
   ['100164', 'Electrical & electronic engineering'], ['100190', 'Mechanical engineering'],
   ['100369', 'Nursing & midwifery'],['100101', 'Biomedical sciences'],
-  ['100091', 'Biology'],
   ['100137', 'Sports & exercise sciences'], ['100116', 'Psychology'],
   ['100380', 'Pharmacy'],           ['100476', 'Public health'],
   ['100388', 'Physiotherapy'],      ['100448', 'Accounting'],
@@ -101,7 +100,6 @@ const HECOS_CODES = [
   ['100065', 'Creative writing'],   ['100067', 'Film & television studies'],
   ['100073', 'Music'],              ['100076', 'Art & design (non-specific)'],
   ['100264', 'Drama & performance'],['100366', 'Digital media'],
-  ['100367', 'Computer games design'],
   ['100401', 'Environmental science'], ['100263', 'Performing arts'],
 ];
 

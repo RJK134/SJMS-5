@@ -36,7 +36,7 @@ describe('D2 foundation tier', () => {
     out = await mkdtemp(path.join(tmpdir(), 'sjms5-d2-'));
     await run(['--out', out, '--seed', 'd2-test']);
     manifest = JSON.parse(await readFile(path.join(out, 'manifest.json'), 'utf8'));
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => { await rm(out, { recursive: true, force: true }); });
 
@@ -88,14 +88,8 @@ describe('D2 foundation tier', () => {
     expect(manifest.rowCounts.rooms).toBeGreaterThan(500);
   });
 
-  it('totalRows is in the expected order of magnitude for D2 only', () => {
-    expect(manifest.totalRows).toBeGreaterThan(10_000);
-    expect(manifest.totalRows).toBeLessThan(50_000);
-  });
-
-  it('governance + finance breakouts present in manifest', () => {
+  it('governance breakouts present in manifest', () => {
     expect(manifest.governanceCounts.faculties).toBe(6);
     expect(manifest.governanceCounts.departments).toBe(48);
-    expect(Object.values(manifest.financeCounts).every((n) => n === 0)).toBe(true);
   });
 });

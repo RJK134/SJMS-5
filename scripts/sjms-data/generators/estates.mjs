@@ -96,6 +96,7 @@ export async function generate(ctx) {
   const rooms = [];
   const teachingBuildings = ctx.ids.buildingIds.filter(b =>
     ['TEACHING','RESEARCH','WORKSHOP','LIBRARY'].includes(b.kind));
+  let roomCounter = 1;
   for (const b of teachingBuildings) {
     const roomsInBuilding = rng.int(15, 40);
     for (let r = 0; r < roomsInBuilding; r++) {
@@ -115,6 +116,7 @@ export async function generate(ctx) {
         hasComputers: roomType === 'COMPUTER_LAB' || roomType === 'LAB' || rng.chance(0.15),
         notes: null,
       });
+      roomCounter++;
     }
   }
   ctx.append('Room', rooms);
