@@ -95,7 +95,40 @@ async function fetchAnchors(gistUrl) {
     process.exit(3);
   }
   const body = await res.text();
-  return body.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  // Tolerant JSONL parse: skip blank lines, skip lines that don't parse
+  // (defensive against a manually-edited gist), and skip records that
+  // lack a manifestPath (e.g. the gist's intro comment line).
+  const records = [];
+  for (const line of body.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let parsed;
+    try { parsed = JSON.parse(trimmed); } catch { continue; }
+    if (parsed && parsed.manifestPath) records.push(parsed);
+  }
+  return records;
+}
+
+// Mirror `jq -S 'del(.generatedAt, .finishedAt)' file | sha256sum`
+// byte-for-byte so the JS verifier produces the same contentSha256
+// the workflow records.
+function sortKeysDeep(v) {
+  if (Array.isArray(v)) return v.map(sortKeysDeep);
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const k of Object.keys(v).sort()) out[k] = sortKeysDeep(v[k]);
+    return out;
+  }
+  return v;
+}
+
+function contentSha256(manifest) {
+  const stripped = { ...manifest };
+  delete stripped.generatedAt;
+  delete stripped.finishedAt;
+  // jq's default output: 2-space indent + trailing newline.
+  const canon = JSON.stringify(sortKeysDeep(stripped), null, 2) + '\n';
+  return createHash('sha256').update(canon).digest('hex');
 }
 
 async function main() {
@@ -117,7 +150,9 @@ async function main() {
 
   const manifestSha = await sha256File(manifestPath);
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  process.stdout.write(`Lake manifest sha256: ${manifestSha}\n`);
+  const contentSha = contentSha256(manifest);
+  process.stdout.write(`Lake manifest sha256:    ${manifestSha}\n`);
+  process.stdout.write(`Lake content  sha256:    ${contentSha}  (timestamps stripped)\n`);
   process.stdout.write(`  schemaHash:  ${manifest.schemaHash}\n`);
   process.stdout.write(`  totalRows:   ${manifest.totalRows.toLocaleString()}\n`);
   process.stdout.write(`  totalTables: ${manifest.totalTables}\n`);
@@ -125,19 +160,31 @@ async function main() {
   const anchors = await fetchAnchors(args.gistUrl);
   process.stdout.write(`\nFetched ${anchors.length} anchor record(s) from gist.\n`);
 
-  const match = anchors.find((a) => a.manifestSha256 === manifestSha);
+  // Match on contentSha256 (stable across regens) first; fall back to
+  // manifestSha256 (exact byte match). Either is a valid anchor hit.
+  let match = anchors.find((a) => a.contentSha256 === contentSha);
+  let matchKind = 'content';
   if (!match) {
-    const recent = anchors.slice(-3).map((a) => `  ${a.anchoredAt}  ${a.manifestSha256.slice(0, 12)}  ${a.manifestPath}`).join('\n');
-    process.stderr.write(`\nNo anchor matches manifest sha256 ${manifestSha}.\n`);
+    match = anchors.find((a) => a.manifestSha256 === manifestSha);
+    matchKind = match ? 'manifest-bytes' : null;
+  }
+  if (!match) {
+    const recent = anchors.slice(-3).map((a) => {
+      const cs = (a.contentSha256 ?? '').slice(0, 12);
+      const ms = (a.manifestSha256 ?? '').slice(0, 12);
+      return `  ${a.anchoredAt}  content=${cs}  bytes=${ms}  ${a.manifestPath}`;
+    }).join('\n');
+    process.stderr.write(`\nNo anchor matches this manifest.\n`);
     process.stderr.write(`Most recent anchors:\n${recent}\n`);
     if (cleanup) await rm(cleanup, { recursive: true, force: true });
     process.exit(2);
   }
 
-  process.stdout.write(`\nAnchor MATCH:\n`);
-  process.stdout.write(`  anchoredAt:  ${match.anchoredAt}\n`);
-  process.stdout.write(`  gitSha:      ${match.gitSha}\n`);
-  process.stdout.write(`  schemaHash:  ${match.schemaHash}\n`);
+  process.stdout.write(`\nAnchor MATCH (${matchKind}):\n`);
+  process.stdout.write(`  anchoredAt:    ${match.anchoredAt}\n`);
+  process.stdout.write(`  gitSha:        ${match.gitSha}\n`);
+  process.stdout.write(`  schemaHash:    ${match.schemaHash}\n`);
+  process.stdout.write(`  manifestPath:  ${match.manifestPath}\n`);
   if (match.schemaHash !== manifest.schemaHash) {
     process.stderr.write(`\nWARNING: schemaHash field disagrees between manifest and anchor.\n`);
     if (cleanup) await rm(cleanup, { recursive: true, force: true });
