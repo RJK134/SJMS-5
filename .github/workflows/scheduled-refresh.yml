@@ -188,7 +188,12 @@ jobs:
           DATE: ${{ steps.resolve.outputs.date }}
           SEED: ${{ steps.resolve.outputs.seed }}
           DEST: ${{ steps.stage.outputs.dest }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SJMS_V4_TOKEN (operator's PAT, has repo scope) is used here
+          # because the default GITHUB_TOKEN is blocked from creating PRs
+          # by the repo-level "Allow GitHub Actions to create and approve
+          # pull requests" setting. The branch push works under either
+          # token; only `gh pr create` needs the elevated permission.
+          GH_TOKEN: ${{ secrets.SJMS_V4_TOKEN }}
         run: |
           set -euo pipefail
           BRANCH="chore/snapshot-$DATE"
