@@ -2,7 +2,7 @@ services:
   # ── PostgreSQL 16 ──────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: sjms-postgres
+    container_name: sjms5-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sjms -d sjms"]
       interval: 10s
@@ -24,14 +24,14 @@ services:
   # ── Redis 7 ────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: sjms-redis
+    container_name: sjms5-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redisdata:/data
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -41,7 +41,7 @@ services:
   # ── MinIO (S3-compatible Object Storage) ───────────────────────
   minio:
     image: minio/minio:latest
-    container_name: sjms-minio
+    container_name: sjms5-minio
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -53,7 +53,7 @@ services:
       - miniodata:/data
     command: server /data --console-address ":9001"
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/ready || exit 1"]
       interval: 15s
@@ -64,7 +64,7 @@ services:
   # ── Keycloak 24 (Identity & Access Management) ────────────────
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
-    container_name: sjms-keycloak
+    container_name: sjms5-keycloak
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -88,7 +88,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test:
         [
@@ -103,7 +103,7 @@ services:
   # ── n8n (Workflow Automation) ──────────────────────────────────
   n8n:
     image: n8nio/n8n:latest
-    container_name: sjms-n8n
+    container_name: sjms5-n8n
     restart: unless-stopped
     ports:
       - "5678:5678"
@@ -133,7 +133,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
       interval: 30s
@@ -150,7 +150,7 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    container_name: sjms-api
+    container_name: sjms5-api
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -175,7 +175,7 @@ services:
       minio:
         condition: service_healthy
     networks:
-      - sjms-network
+      - sjms5-network
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
       interval: 15s
@@ -188,19 +188,19 @@ services:
     build:
       context: .
       dockerfile: client/Dockerfile
-    container_name: sjms-client
+    container_name: sjms5-client
     restart: unless-stopped
     ports:
       - "5173:80"
     depends_on:
       - api
     networks:
-      - sjms-network
+      - sjms5-network
 
   # ── Nginx (Reverse Proxy) ─────────────────────────────────────
   nginx:
     image: nginx:alpine
-    container_name: sjms-nginx
+    container_name: sjms5-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -214,10 +214,10 @@ services:
       client:
         condition: service_started
     networks:
-      - sjms-network
+      - sjms5-network
 
 networks:
-  sjms-network:
+  sjms5-network:
     driver: bridge
 
 volumes:

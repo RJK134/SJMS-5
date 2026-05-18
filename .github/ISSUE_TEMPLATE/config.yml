@@ -4,8 +4,8 @@ blank_issues_enabled: false
 
 contact_links:
   - name: "Security vulnerability"
-    url: "https://github.com/RJK134/SJMS-2.5/security/advisories/new"
+    url: "https://github.com/RJK134/SJMS-5/security/advisories/new"
     about: "Report security vulnerabilities privately via GitHub Security Advisories. Do not open a public issue."
   - name: "Documentation fix"
-    url: "https://github.com/RJK134/SJMS-2.5/issues/new?template=bug_report.yml&labels=documentation"
+    url: "https://github.com/RJK134/SJMS-5/issues/new?template=bug_report.yml&labels=documentation"
     about: "Found a mistake in the docs? Use the bug report template; the documentation label is added automatically."

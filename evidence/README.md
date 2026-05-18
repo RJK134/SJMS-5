@@ -11,11 +11,11 @@ Each record is a JSON file named
 
 | Topic                              | Source                                                                  |
 | ---------------------------------- | ----------------------------------------------------------------------- |
-| `branch-protection-baseline`       | `gh api repos/RJK134/SJMS-2.5/branches/main/protection` before apply    |
+| `branch-protection-baseline`       | `gh api repos/RJK134/SJMS-5/branches/main/protection` before apply    |
 | `branch-protection-apply`          | The apply event itself (commit SHA, run URL, timestamp)                  |
 | `branch-protection-drift`          | Output of `.github/workflows/governance-drift.yml` when drift is found  |
 | `permission_blocked`               | Records when an automation could not perform a step due to scope         |
-| `repo-collaborators`               | `gh api repos/RJK134/SJMS-2.5/collaborators` snapshot                    |
+| `repo-collaborators`               | `gh api repos/RJK134/SJMS-5/collaborators` snapshot                    |
 
 ## Common shape
 
@@ -27,7 +27,7 @@ Each record is a JSON file named
   "source": "<github-api | claude-code | cursor-agent | manual>",
   "actor": "<GitHub login or service account>",
   "context": {
-    "repo": "RJK134/SJMS-2.5",
+    "repo": "RJK134/SJMS-5",
     "branch": "main",
     "commit": "<sha>"
   },

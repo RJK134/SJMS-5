@@ -1,6 +1,6 @@
-# Contributing to SJMS 2.5
+# Contributing to SJMS-5
 
-This file is the single supported path for getting a working SJMS 2.5
+This file is the single supported path for getting a working SJMS-5
 development environment running locally. If anything below contradicts
 another doc, this file wins for **how to set up and run the app**, and the
 operating model in `docs/delivery-plan/enterprise-delivery-operating-model.md`
@@ -32,8 +32,8 @@ You do **not** need Java, Python, or any global ORM CLI. Prisma is invoked via
 
 ```bash
 # 1. Clone
-git clone https://github.com/RJK134/SJMS-2.5.git
-cd SJMS-2.5
+git clone https://github.com/RJK134/SJMS-5.git
+cd SJMS-5
 
 # 2. Environment
 cp .env.example .env

@@ -1,6 +1,6 @@
 name: CodeQL
 
-# Static security analysis for the SJMS 2.5 JavaScript/TypeScript
+# Static security analysis for the SJMS-5 JavaScript/TypeScript
 # codebase. Results are published to the repository's Security tab
 # under "Code scanning". This workflow is not an enforcement gate —
 # the `CI` workflow is — so treat findings as advisories until we

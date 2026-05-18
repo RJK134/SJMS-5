@@ -1,4 +1,4 @@
-# SJMS 2.5 — Claude Code Master Context
+# SJMS-5 — Claude Code Master Context
 
 > **Owner:** Richard Knapp · Future Horizons Education (FHE)
 > **Last updated:** 2026-05-01

@@ -3,7 +3,7 @@
   "version": "2.5.0",
   "private": true,
   "type": "module",
-  "description": "SJMS 2.5 React Frontend",
+  "description": "SJMS-5 React Frontend",
   "scripts": {
     "dev": "vite --port 5173",
     "build": "tsc -b && vite build",

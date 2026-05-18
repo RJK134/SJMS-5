@@ -365,7 +365,7 @@
   "clients": [
     {
       "clientId": "sjms-client",
-      "name": "SJMS 2.5 Client",
+      "name": "SJMS-5 Client",
       "description": "Student Journey Management System frontend application",
       "enabled": true,
       "publicClient": true,

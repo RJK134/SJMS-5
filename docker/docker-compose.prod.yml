@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# SJMS 2.5 — Production Docker Compose Overlay
+# SJMS-5 — Production Docker Compose Overlay
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker/docker-compose.prod.yml up -d
@@ -130,7 +130,7 @@ services:
     #   docker compose exec nginx nginx -s reload
     entrypoint: ["echo", "Certbot ready. Run 'docker compose --profile letsencrypt run --rm certbot certonly ...' to issue certificates."]
     networks:
-      - sjms-network
+      - sjms5-network
 
 volumes:
   postgres_data_prod:

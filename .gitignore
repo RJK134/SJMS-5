@@ -76,3 +76,7 @@ coverage/
 
 # Office temp files
 ~$*
+
+# Dataset generator output (live on gdrive5tb:sjms-5-dataset/)
+output/
+!output/.gitkeep

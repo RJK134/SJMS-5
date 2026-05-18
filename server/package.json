@@ -2,7 +2,7 @@
   "name": "@sjms/server",
   "version": "2.5.0",
   "private": true,
-  "description": "SJMS 2.5 API Server",
+  "description": "SJMS-5 API Server",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

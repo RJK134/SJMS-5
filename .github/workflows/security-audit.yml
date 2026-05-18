@@ -1,6 +1,6 @@
 name: Security audit
 
-# Supply-chain scanning for the SJMS 2.5 npm workspaces.
+# Supply-chain scanning for the SJMS-5 npm workspaces.
 #
 # Runs `npm audit` on root, server, and client, publishes a summary
 # table of High/Critical findings to the step summary, and uploads
