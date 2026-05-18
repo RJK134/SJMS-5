@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SJMS 2.5 — Future Horizons Education</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Hash-router default: redirect bare "/" to the dashboard so the
+      // user never lands on the NotFound page on first load.
+      if (!window.location.hash) window.location.replace('#/dashboard');
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

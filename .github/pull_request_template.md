@@ -1,0 +1,107 @@
+## Review Scope — SJMS-5
+
+> ⚠️ Review only the diff in this PR and the control files it updates.
+
+**BLOCKING findings ONLY if they affect:**
+1. Authentication, authorisation, or data scoping correctness
+2. Missing validation, audit logging, or webhook emission on touched mutations
+3. Hard deletes or destructive finance/marks retention behaviour
+4. Broken CI, build, verification, or release-discipline automation
+5. Broken routes, portal entry points, or workflow/event regressions introduced by this PR
+6. Security-critical configuration drift (secrets, CSP/CORS, auth bypass, request correlation, workflow credentials)
+
+**NON-BLOCKING findings:**
+- repository-layer bypasses
+- missing tests where the diff introduces logic
+- documentation drift outside the touched files
+- style or naming issues directly in the diff
+- backlog-worthy concerns that do not block merge
+
+**DO NOT:**
+- request broad refactors outside this PR's scope
+- reopen already-accepted architectural decisions unless this PR regresses them
+- comment on untouched files
+- suggest new frameworks or dependencies unless required to fix a blocking issue
+
+**OUTPUT LIMITS:**
+- Maximum 5 blocking findings
+- Maximum 5 non-blocking findings
+- State `BLOCKING` or `NON-BLOCKING` on every finding
+- State `must fix before merge`, `fix if quick`, or `backlog` on every finding
+
+---
+
+## Phase Details
+
+**Phase objective:**
+<!-- Describe the business outcome for this phase or batch -->
+
+**Branch:**
+<!-- e.g. phase-14/governance-baseline -->
+
+**Batches completed:**
+<!-- List each batch with its scope and commit SHA, for example:
+- Batch 1A — CI workflow hardening (0d570c0)
+- Batch 1B — .claude/worktrees cleanup (49cd99e)
+-->
+
+## Acceptance gates
+
+Hard gates (must pass before merge):
+
+- [ ] `cd server && npx tsc --noEmit`
+- [ ] `cd client && npx tsc --noEmit`
+- [ ] `DATABASE_URL=... npx prisma validate --schema=prisma/schema.prisma`
+- [ ] `npx prisma generate --schema=prisma/schema.prisma`
+- [ ] Relevant Vitest suites pass (server `cd server && npm run test`)
+- [ ] Relevant Playwright suites pass (when user journeys are touched)
+- [ ] `docs/VERIFICATION-PROTOCOL.md` gates reviewed
+- [ ] BugBot HIGH findings: 0 open
+- [ ] GitGuardian / secret checks: no blocking findings
+- [ ] No `.claude/worktrees/`, `.claude/*.txt`, `*.log`, or other agent-session artefacts in the diff
+- [ ] No new gitlink (mode 160000) entry without a matching `.gitmodules` record (`git ls-files -s | awk '$1=="160000"'` empty)
+
+Reports (non-blocking, surfaced for visibility):
+
+- [ ] CI step `Publish server coverage summary` rendered without errors. Coverage thresholds inherit from `server/vitest.config.ts`; the CI workflow does not override them. See the ratchet plan in `docs/BUILD-QUEUE.md`.
+
+## Known issues resolved
+
+- [ ] KI-...
+
+## Known issues deferred
+
+- [ ] KI-... — reason and target phase
+
+## Testing evidence
+
+<!--
+List the exact commands run and their outcomes. For CI-only changes,
+point at the CI run URL and, where relevant, the coverage artefact
+published from the `server-coverage` upload step.
+-->
+
+## Reviewer notes
+
+<!-- Call out any specific areas BugBot or human reviewers should focus on -->
+
+---
+
+## Attribution metadata
+
+> **Required for every PR.** This block is read by auditors to
+> reconstruct authorship. Replace the placeholder values; do **not**
+> remove the block. AI-assisted contributions count as the first set
+> of eyes only — a human maintainer must still review and approve.
+
+```
+AI-Assisted-By: <claude-code | cursor-background-agent | copilot-chat | bugbot | none> (specify all that applied)
+Prompt-Pack: <prompt pack identifier, or "ad-hoc">
+Blocker-ID: <blocker id, or "n/a">
+Validation-Run: <CI run URL>
+BugBot-HIGH-Open: 0
+Reviewer-Focus-Areas:
+  - <area 1>
+  - <area 2>
+Human-Approval-Required: yes (CODEOWNERS + maintainer squash-merge)
+```

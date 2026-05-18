@@ -1,25 +1,47 @@
 {
-  "name": "@sjms-5/dataset",
-  "version": "0.1.0",
+  "name": "sjms-5",
+  "version": "2.5.0",
   "private": true,
-  "description": "SJMS-5 synthetic dataset generator — produces a long-lived virtual UK university on the gdrive5tb datalake",
-  "type": "module",
+  "description": "Student Journey Management System — Future Horizons Education",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
-    "generate": "node scripts/generate-synthetic-dataset.mjs",
-    "generate:dry-run": "node scripts/generate-synthetic-dataset.mjs --dry-run --out output/dry-run",
-    "generate:sample": "node scripts/generate-synthetic-dataset.mjs --scale 0.05 --out output/sample",
-    "import-sjms-dataset": "node scripts/import-sjms-dataset.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "start": "npm run start --workspace=server",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces --if-present",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "prisma:generate": "npx prisma generate --schema=prisma/schema.prisma",
+    "prisma:migrate": "npx prisma migrate dev --schema=prisma/schema.prisma",
+    "prisma:deploy": "npx prisma migrate deploy --schema=prisma/schema.prisma",
+    "prisma:studio": "npx prisma studio --schema=prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "deploy:init": "tsx scripts/deploy-init.ts",
+    "diagnose:vercel": "tsx scripts/diagnose-vercel-neon.ts",
+    "provision:workflows": "npx tsx scripts/provision-n8n-workflows.ts",
+    "docs:check": "node scripts/check-docs-truth.mjs"
   },
-  "dependencies": {
-    "seedrandom": "^3.0.5"
-  },
-  "devDependencies": {
-    "vitest": "^2.1.8"
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "engines": {
-    "node": ">=18.19.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "author": "Future Horizons Education",
+  "license": "UNLICENSED",
+  "devDependencies": {},
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3",
+    "tsx": "^4.22.1",
+    "zod": "^4.4.3"
   }
 }

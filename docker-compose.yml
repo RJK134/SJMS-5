@@ -1,0 +1,227 @@
+services:
+  # ── PostgreSQL 16 ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: sjms5-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: sjms
+      POSTGRES_USER: sjms
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    networks:
+      - sjms5-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sjms -d sjms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sjms5-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - sjms5-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible Object Storage) ───────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: sjms5-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - sjms5-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Keycloak 24 (Identity & Access Management) ────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: sjms5-keycloak
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/sjms?currentSchema=keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: sjms
+      KC_DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_HEALTH_ENABLED: "true"
+    # On first boot, imports the 'fhe' realm from docker/keycloak/fhe-realm.json
+    # (36 roles with composite hierarchy + sjms-client public client with PKCE).
+    # Subsequent boots skip unchanged realms; re-run scripts/keycloak-setup.ts to
+    # refresh test users (the realm JSON deliberately excludes credentials).
+    command: start-dev --import-realm
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sjms5-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && timeout 5 cat <&3 | grep -q 'UP'"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+
+  # ── n8n (Workflow Automation) ──────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: sjms5-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://localhost:5678}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env — no default}
+      # Workflow JSON uses http://api:3001 directly (no $env runtime access
+      # needed — resolves KI-P6-009). WORKFLOW_INTERNAL_SECRET is read by the
+      # provisioning script to create the n8n credential at import time.
+      API_BASE_URL: http://api:3001
+      WORKFLOW_INTERNAL_SECRET: ${WORKFLOW_INTERNAL_SECRET:-${INTERNAL_SERVICE_KEY}}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: sjms
+      DB_POSTGRESDB_USER: sjms
+      DB_POSTGRESDB_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - n8ndata:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sjms5-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── API Server ─────────────────────────────────────────────────
+  # Rebuilt 2026-04-11 (Phase 2.5 Task 4): multi-stage Dockerfile with a
+  # proper `npm run build` step and repo-root build context so the Prisma
+  # schema is in scope. Local dev (`cd server && npm run dev`) remains the
+  # recommended workflow; the container image is for production parity.
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: sjms5-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://sjms:${DB_PASSWORD:-changeme}@postgres:5432/sjms?schema=sjms_app
+      REDIS_URL: redis://redis:6379
+      WEBHOOK_URL: http://n8n:5678
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_ISSUER_URL: http://localhost:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-fhe}
+      MINIO_ENDPOINT: minio
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env — no default}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - sjms5-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Client (React Frontend) ───────────────────────────────────
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: sjms5-client
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    networks:
+      - sjms5-network
+
+  # ── Nginx (Reverse Proxy) ─────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: sjms5-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      client:
+        condition: service_started
+    networks:
+      - sjms5-network
+
+networks:
+  sjms5-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  n8ndata:

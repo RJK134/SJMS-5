@@ -1,0 +1,48 @@
+import type { Request, Response, NextFunction } from 'express';
+import * as service from './dashboard.service';
+
+export async function staffStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.getStaffStats();
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function studentDashboard(req: Request, res: Response, next: NextFunction) {
+  try {
+    const studentId = typeof req.params.studentId === 'string' ? req.params.studentId : '';
+    const data = await service.getStudentDashboard(studentId);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function applicantDashboard(req: Request, res: Response, next: NextFunction) {
+  try {
+    const personId = typeof req.params.personId === 'string' ? req.params.personId : '';
+    const data = await service.getApplicantDashboard(personId);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function academicDashboard(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user?.sub ?? '';
+    const data = await service.getAcademicDashboard(userId);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function engagementScores(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.getEngagementScores(req.query as unknown as service.EngagementScoresQuery);
+    res.json({ success: true, ...result });
+  } catch (err) { next(err); }
+}
+
+export async function staffTutees(req: Request, res: Response, next: NextFunction) {
+  try {
+    const staffId = typeof req.params.staffId === 'string' ? req.params.staffId : '';
+    const result = await service.getStaffTutees(staffId, req.query as unknown as service.StaffTuteesQuery);
+    res.json({ success: true, ...result });
+  } catch (err) { next(err); }
+}

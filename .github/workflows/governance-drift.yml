@@ -1,0 +1,259 @@
+name: governance-drift
+
+# Detects drift between the codified branch-protection policy in
+# scripts/governance/protection.json and the live configuration on
+# the GitHub API. Runs on every PR (so a maintainer cannot quietly
+# relax the policy in the same PR), on every push to main (so the
+# squash-merge of a governance change is verified end-to-end), and
+# nightly (so a UI-driven bypass is detected within 24 hours).
+#
+# This workflow is the only authorised drift detector. The
+# break-glass admin-bypass procedure in GOVERNANCE.md depends on
+# this workflow firing within 24 hours — do not weaken its
+# scheduling without updating GOVERNANCE.md §6 and §10 in the same
+# PR.
+
+on:
+  # No `paths:` filter on pull_request: this workflow's
+  # `governance-drift` aggregator job is listed as a required status
+  # check in scripts/governance/protection.json, and GitHub leaves
+  # required checks in "Pending" forever when the workflow does not
+  # trigger because of a path filter. That would block every
+  # non-governance PR from merging once the policy is applied.
+  # The validate-policy job is fast (single Node script), and
+  # diff-live-policy is gated behind a 403 fail-open path on tokens
+  # without admin scope, so running on every PR is cheap.
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 3 * * *'  # nightly at 03:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: governance-drift-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # never cancel a drift run
+
+jobs:
+  validate-policy:
+    name: Validate codified policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Run protection.json self-test
+        run: node scripts/governance/__tests__/protection.test.mjs
+
+      - name: Lint CODEOWNERS syntax
+        # Every line is either a comment, a blank line, or a path-pattern
+        # followed by at least one @owner. A misformatted line silently
+        # disables the rule for that path on GitHub, so we fail CI early.
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r line; do
+            # skip blanks and comments
+            if [[ -z "${line// /}" ]] || [[ "${line:0:1}" == "#" ]]; then
+              continue
+            fi
+            # require at least one '@' owner reference on the line
+            if ! [[ "$line" == *"@"* ]]; then
+              echo "::error file=.github/CODEOWNERS::Line missing owner reference: $line"
+              fail=1
+            fi
+          done < .github/CODEOWNERS
+          if [[ $fail -ne 0 ]]; then
+            echo "CODEOWNERS lint failed"
+            exit 1
+          fi
+          echo "CODEOWNERS syntax OK"
+
+  diff-live-policy:
+    name: Diff live branch protection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: validate-policy
+    # Drift diff requires a token with admin:repo scope to call the
+    # protection API. When the token does not have that scope (typical
+    # GITHUB_TOKEN on PRs from forks), the step fails-open with a
+    # warning rather than a hard failure — the validate-policy job
+    # above is the always-on gate.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Fetch and diff live protection
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GOVERNANCE_DRIFT_TOKEN || secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -uo pipefail
+          # Try to fetch live protection. A 404 means protection is not
+          # configured at all (the worst kind of drift); a 403 means the
+          # token lacks scope and we fail-open.
+          http_status=$(curl -sS -o live-protection.json -w '%{http_code}' \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${OWNER}/${REPO}/branches/main/protection") || http_status=000
+
+          case "$http_status" in
+            200)
+              echo "live-protection HTTP 200 — diffing"
+              echo "fetched=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "::error::Branch protection is NOT configured on main (HTTP 404). Drift = total. Apply scripts/governance/protection.json immediately."
+              exit 1
+              ;;
+            403)
+              echo "::warning::Token lacks admin:repo scope (HTTP 403). Drift cannot be evaluated; relying on validate-policy job and CODEOWNERS instead."
+              echo "fetched=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+            *)
+              echo "::error::Unexpected HTTP status fetching live protection: $http_status"
+              cat live-protection.json || true
+              exit 1
+              ;;
+          esac
+
+          # Normalise both shapes to the same key set before diffing,
+          # because the API's GET response includes nested `enabled`
+          # wrappers (e.g. `enforce_admins.enabled = true`) while the
+          # PUT request body uses the flat shape.
+          #
+          # CommonJS syntax (require + no top-level await) — Node treats
+          # heredoc stdin as CommonJS by default, and `node --input-type=module`
+          # is not used here so we must not write `import`. Mirrors the
+          # convention in .github/workflows/ci.yml and security-audit.yml.
+          node <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const codified = JSON.parse(readFileSync('scripts/governance/protection.json', 'utf8'));
+          const live     = JSON.parse(readFileSync('live-protection.json', 'utf8'));
+          const flat = (live) => ({
+            required_status_checks: live.required_status_checks
+              ? { strict: live.required_status_checks.strict, contexts: [...(live.required_status_checks.contexts ?? [])].sort() }
+              : null,
+            enforce_admins: live.enforce_admins?.enabled ?? false,
+            required_pull_request_reviews: live.required_pull_request_reviews
+              ? {
+                  dismiss_stale_reviews: live.required_pull_request_reviews.dismiss_stale_reviews,
+                  require_code_owner_reviews: live.required_pull_request_reviews.require_code_owner_reviews,
+                  required_approving_review_count: live.required_pull_request_reviews.required_approving_review_count,
+                  require_last_push_approval: live.required_pull_request_reviews.require_last_push_approval ?? false,
+                }
+              : null,
+            required_signatures: live.required_signatures?.enabled ?? false,
+            required_linear_history: live.required_linear_history?.enabled ?? false,
+            required_conversation_resolution: live.required_conversation_resolution?.enabled ?? false,
+            allow_force_pushes: live.allow_force_pushes?.enabled ?? false,
+            allow_deletions: live.allow_deletions?.enabled ?? false,
+            block_creations: live.block_creations?.enabled ?? false,
+            lock_branch: live.lock_branch?.enabled ?? false,
+            allow_fork_syncing: live.allow_fork_syncing?.enabled ?? false,
+          });
+          const expected = {
+            required_status_checks: { strict: codified.required_status_checks.strict, contexts: [...codified.required_status_checks.contexts].sort() },
+            enforce_admins: codified.enforce_admins,
+            required_pull_request_reviews: {
+              dismiss_stale_reviews: codified.required_pull_request_reviews.dismiss_stale_reviews,
+              require_code_owner_reviews: codified.required_pull_request_reviews.require_code_owner_reviews,
+              required_approving_review_count: codified.required_pull_request_reviews.required_approving_review_count,
+              require_last_push_approval: codified.required_pull_request_reviews.require_last_push_approval,
+            },
+            required_signatures: codified.required_signatures,
+            required_linear_history: codified.required_linear_history,
+            required_conversation_resolution: codified.required_conversation_resolution,
+            allow_force_pushes: codified.allow_force_pushes,
+            allow_deletions: codified.allow_deletions,
+            block_creations: codified.block_creations,
+            lock_branch: codified.lock_branch,
+            allow_fork_syncing: codified.allow_fork_syncing,
+          };
+          const actual = flat(live);
+          const diff = [];
+          const cmp = (path, e, a) => {
+            if (JSON.stringify(e) !== JSON.stringify(a)) {
+              diff.push(`${path}: expected=${JSON.stringify(e)} actual=${JSON.stringify(a)}`);
+            }
+          };
+          for (const k of Object.keys(expected)) {
+            if (typeof expected[k] === 'object' && expected[k] !== null) {
+              for (const k2 of Object.keys(expected[k])) {
+                cmp(`${k}.${k2}`, expected[k][k2], actual[k]?.[k2]);
+              }
+            } else {
+              cmp(k, expected[k], actual[k]);
+            }
+          }
+          if (diff.length === 0) {
+            console.log('::notice::Live branch protection matches scripts/governance/protection.json — no drift');
+            process.exit(0);
+          }
+          console.log('::error::Live branch protection has DRIFTED from scripts/governance/protection.json');
+          for (const d of diff) console.log('::error::  ' + d);
+          process.exit(1);
+          NODE
+
+      - name: Upload live snapshot for audit
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-protection-snapshot
+          path: live-protection.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  governance-drift:
+    name: governance-drift
+    # Aggregator. This job's name ("governance-drift") is the canonical
+    # context that scripts/governance/protection.json::required_status_checks.contexts
+    # refers to, so branch protection only has to require a single
+    # context regardless of how many jobs this workflow gains over time.
+    needs: [validate-policy, diff-live-policy]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify required jobs succeeded
+        env:
+          VALIDATE_RESULT: ${{ needs.validate-policy.result }}
+          DIFF_RESULT: ${{ needs.diff-live-policy.result }}
+        run: |
+          set -u
+          fail=0
+          check() {
+            local name="$1"
+            local result="$2"
+            if [ "$result" = "success" ]; then
+              echo "::notice::$name: $result"
+            else
+              echo "::error::$name failed with result '$result'"
+              fail=1
+            fi
+          }
+          check "validate-policy"  "$VALIDATE_RESULT"
+          check "diff-live-policy" "$DIFF_RESULT"
+          if [ "$fail" -ne 0 ]; then
+            echo "governance-drift: at least one required job failed"
+            exit 1
+          fi
+          echo "governance-drift: all required jobs succeeded"

@@ -1,0 +1,48 @@
+{
+  "$schema": "internal://sjms/evidence/v1",
+  "topic": "branch-protection-baseline",
+  "capturedAt": "2026-04-29T22:39:34Z",
+  "source": "claude-code",
+  "actor": "claude-code (Opus 4.7) on session for RJK134/SJMS-2.5",
+  "context": {
+    "repo": "RJK134/SJMS-2.5",
+    "branch": "main",
+    "commit": "957d05d"
+  },
+  "intendedRequest": {
+    "method": "GET",
+    "path": "/repos/RJK134/SJMS-2.5/branches/main/protection",
+    "purpose": "Capture the live branch-protection configuration before applying the codified policy in scripts/governance/protection.json."
+  },
+  "result": "permission_blocked",
+  "permission_blocked": {
+    "reason": "The GitHub MCP server exposed to this session does not provide a branch-protection GET tool. The available mcp__github__* surface includes file, branch, PR, issue, and commit operations but no `update_branch_protection` or `get_branch_protection` endpoint.",
+    "verification": "ToolSearch query `branch protection update` returned mcp__github__update_pull_request_branch (PR sync) and mcp__github__create_or_update_file, neither of which targets the branches/{branch}/protection API.",
+    "would_have_run": "gh api repos/RJK134/SJMS-2.5/branches/main/protection",
+    "next_actor_required": "A repository administrator with `admin:repo` scope must run the GET themselves to capture the live baseline, then push the result back into evidence/branch-protection-baseline-2026-04-29.json (overwriting this `permission_blocked` placeholder) and apply the policy via the runbook in docs/governance/branch-protection.md."
+  },
+  "ciSignals": {
+    "comment": "Inferred from the latest review notes referenced by the Future Horizons delivery prompt that opened this work; not derived from a live API call. Treat the values below as the prompt's stated baseline, not as cryptographic evidence.",
+    "promptStatedBaseline": {
+      "required_approving_review_count": 1,
+      "enforce_admins": false,
+      "required_signatures": false,
+      "codeowners_present": true,
+      "codeowners_complete": "partial — additions made on this branch under .github/CODEOWNERS for /GOVERNANCE.md, /docs/governance/**, /scripts/governance/**, /evidence/**",
+      "security_md_present": true,
+      "governance_md_present": false
+    }
+  },
+  "remediationPR": "claude/blocker-branch-protection-governance",
+  "remediationDeliverables": [
+    "GOVERNANCE.md",
+    ".github/CODEOWNERS (extended)",
+    ".github/pull_request_template.md (attribution block added)",
+    "scripts/governance/protection.json",
+    "scripts/governance/__tests__/protection.test.mjs",
+    ".github/workflows/governance-drift.yml",
+    "docs/governance/branch-protection.md",
+    "evidence/README.md",
+    "evidence/branch-protection-baseline-2026-04-29.json (this file)"
+  ]
+}

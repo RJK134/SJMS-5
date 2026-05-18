@@ -1,0 +1,56 @@
+import prisma from '../utils/prisma';
+import { type CursorPaginationParams, buildCursorPaginatedResponse, safeOrderBy } from '../utils/pagination';
+import { SYSTEM_SETTING_SORT } from '../utils/repository-sort-allow-lists';
+import { type Prisma } from '@prisma/client';
+
+export interface SystemSettingFilters {
+  search?: string;
+  category?: string;
+}
+
+export async function list(filters: SystemSettingFilters, pagination: CursorPaginationParams) {
+  const where: Prisma.SystemSettingWhereInput = {
+    ...(filters.search && {
+      OR: [
+        { settingKey: { contains: filters.search, mode: 'insensitive' as const } },
+        { description: { contains: filters.search, mode: 'insensitive' as const } },
+      ],
+    }),
+    ...(filters.category && { category: filters.category }),
+  };
+
+  const [data, total] = await Promise.all([
+    prisma.systemSetting.findMany({
+      where,
+      take: pagination.limit + 1,
+      ...(pagination.cursor ? { cursor: { id: pagination.cursor }, skip: 1 } : {}),
+      orderBy: safeOrderBy(pagination, SYSTEM_SETTING_SORT),
+    }),
+    prisma.systemSetting.count({ where }),
+  ]);
+
+  return buildCursorPaginatedResponse(data, total, pagination.limit);
+}
+
+export async function getById(id: string) {
+  return prisma.systemSetting.findUnique({ where: { id } });
+}
+
+export async function getByKey(settingKey: string) {
+  return prisma.systemSetting.findUnique({ where: { settingKey } });
+}
+
+export async function create(data: Prisma.SystemSettingCreateInput) {
+  return prisma.systemSetting.create({ data });
+}
+
+export async function update(id: string, data: Prisma.SystemSettingUpdateInput) {
+  return prisma.systemSetting.update({ where: { id }, data });
+}
+
+export async function remove(id: string) {
+  return prisma.systemSetting.delete({ where: { id } });
+}
+
+/** @deprecated Use remove() — SystemSetting has no deletedAt field; this is a hard delete. */
+export const softDelete = remove;

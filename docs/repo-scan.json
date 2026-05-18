@@ -1,0 +1,214 @@
+{
+  "$schema": "internal://sjms/repo-scan/v1",
+  "generatedAt": "2026-04-29",
+  "branch": "claude/sjms-production-readiness-f6yiq",
+  "baselineCommit": "ba7f230",
+  "summary": {
+    "verdict": "GREEN",
+    "headline": "Repository discipline is intact. The prompt's repo-scan focus areas (direct prisma imports, missing requireRole, missing validate, missing audit/event, localStorage tokens) all return zero findings. The genuine gaps are in test depth and a handful of fail-soft TODOs, not in architecture.",
+    "rule_compliance": {
+      "no_direct_prisma_in_api": true,
+      "all_routers_have_requireRole": true,
+      "all_routers_have_validate": true,
+      "all_mutating_services_have_audit_and_event": true,
+      "no_localStorage_or_sessionStorage_for_tokens": true
+    }
+  },
+  "counts": {
+    "prismaModels": 197,
+    "apiModules": 54,
+    "apiRouters": 44,
+    "apiGroupBarrels": 9,
+    "apiServiceFiles": 49,
+    "frontEndPages": 129,
+    "rolesDefined": 36,
+    "unitTestFiles": 16,
+    "e2eSpecFiles": 3,
+    "n8nWorkflows": 15
+  },
+  "directPrismaImports": {
+    "description": "API services that import the prisma client directly (excluding `import type { Prisma }` which is a TYPE-ONLY namespace import — not the client).",
+    "results": [],
+    "note": "All 49 service files use `import type { Prisma } from '@prisma/client'` for input/return type shaping only. Persistence is routed through `server/src/repositories/*` per the repository pattern. Two grep matches for `prisma.` in `server/src/api/enrolments/enrolments.service.ts` and `server/src/api/applications/applications.schema.ts` are inside comments, not code."
+  },
+  "mutationsMissingAuditOrEvent": {
+    "description": "Service files containing mutation calls but missing logAudit or emitEvent calls.",
+    "results": [],
+    "note": "Every mutating service in the 44 routed modules calls both logAudit() and emitEvent(). Modules with audit=0/emit=0 in the heuristic scan (audit, calendar, dashboard, statutory-returns, timetable) are read-only or aggregator services with no mutations and are correctly silent on both."
+  },
+  "routersMissingRequireRole": {
+    "description": "Routers exposing mutating verbs (POST/PUT/PATCH/DELETE) without requireRole middleware.",
+    "results": [],
+    "note": "All 44 routers attach requireRole on every mutating route. The `audit` router has 0 mutations and 2 requireRole calls (read-only RBAC) — correct."
+  },
+  "routersMissingValidate": {
+    "description": "Routers exposing mutating verbs without validate() middleware.",
+    "results": [],
+    "note": "All 44 routers attach validate() on mutating routes. The `audit` and `reports` routers do not validate POST/PUT bodies because they have no mutating verbs (or only filtered queries) — correct by design."
+  },
+  "clientStorageOfTokens": {
+    "description": "Client files using localStorage or sessionStorage.",
+    "results": [],
+    "note": "Only mention is in `client/src/lib/auth.ts` lines 19 and 172 — both inside comments confirming the no-storage policy. No localStorage or sessionStorage calls are made anywhere in client/src."
+  },
+  "testInventory": {
+    "unitTestFiles": [
+      "server/src/__tests__/unit/admissions.service.test.ts",
+      "server/src/__tests__/unit/appeals.service.test.ts",
+      "server/src/__tests__/unit/attendance.service.test.ts",
+      "server/src/__tests__/unit/clearance-checks.service.test.ts",
+      "server/src/__tests__/unit/communications.service.test.ts",
+      "server/src/__tests__/unit/ec-claims.service.test.ts",
+      "server/src/__tests__/unit/enrolments.service.test.ts",
+      "server/src/__tests__/unit/finance.service.test.ts",
+      "server/src/__tests__/unit/marks.service.test.ts",
+      "server/src/__tests__/unit/module-registrations.service.test.ts",
+      "server/src/__tests__/unit/module-results.service.test.ts",
+      "server/src/__tests__/unit/offers.service.test.ts",
+      "server/src/__tests__/unit/pagination.test.ts",
+      "server/src/__tests__/unit/request-correlation.service.test.ts",
+      "server/src/__tests__/unit/support.service.test.ts",
+      "server/src/__tests__/unit/validate.middleware.test.ts"
+    ],
+    "e2eSpecFiles": [
+      "client/e2e/admin-auth.spec.ts",
+      "client/e2e/assessment-submission.spec.ts",
+      "client/e2e/student-enrolment.spec.ts"
+    ],
+    "untestedDomains": [
+      "accommodation",
+      "admissions-events",
+      "applications",
+      "assessments",
+      "awards",
+      "config",
+      "demographics",
+      "departments",
+      "documents",
+      "exam-boards",
+      "faculties",
+      "governance",
+      "hesa",
+      "identifiers",
+      "interviews",
+      "modules",
+      "notifications",
+      "persons",
+      "programme-approvals",
+      "programme-modules",
+      "programme-routes",
+      "programmes",
+      "progressions",
+      "qualifications",
+      "references",
+      "reports",
+      "schools",
+      "students",
+      "submissions",
+      "transcripts",
+      "ukvi",
+      "webhooks"
+    ],
+    "untestedDomainsCount": 32,
+    "note": "Note that `applications.service.test.ts` is not present, but `admissions.service.test.ts` covers the application lifecycle state machine and the offer-condition auto-promotion evaluator from `applications.service.ts`. The 16 unit test files target the highest-risk surfaces (lifecycles, business rules, mutations) — coverage threshold is intentionally 0 with monitor-only enforcement (KI-P14-002 sequenced to Phase 17)."
+  },
+  "todosAndFixmes": {
+    "count": 11,
+    "items": [
+      {
+        "file": "server/src/api/attendance/attendance.service.ts",
+        "line": 41,
+        "kind": "TODO",
+        "text": "but never invoked from the mutation path (TODO on line 129 of this file).",
+        "status": "stale — the in-process backstop was added in Phase 13b and the TODO comment was not removed"
+      },
+      {
+        "file": "server/src/api/attendance/attendance.service.ts",
+        "line": 252,
+        "kind": "TODO",
+        "text": "TODO(Phase 7): Wire emitAttendanceAlert into attendance monitoring pipeline",
+        "status": "stale — the in-process backstop closes this; comment can be deleted"
+      },
+      {
+        "file": "server/src/api/communications/communications.service.ts",
+        "line": 119,
+        "kind": "TODO",
+        "text": "TODO(Phase 8): Wire actual email/SMS delivery via SMTP_* env vars",
+        "status": "open — sequenced to Phase 20 (integration activation)"
+      },
+      {
+        "file": "server/src/utils/grade-boundaries.ts",
+        "line": 26,
+        "kind": "TODO",
+        "text": "TODO [P1]: Implement mark aggregation endpoint (POST /v1/marks/aggregate)",
+        "status": "open — sequenced to Phase 17 (assessment to award)"
+      },
+      {
+        "file": "client/src/services/*.service.ts",
+        "kind": "TODO",
+        "text": "// TODO: replace with generated Prisma type in Phase 9",
+        "status": "stale label — Prisma client generation is in place; the inline interfaces are deliberate to keep the client free of `@prisma/client` runtime dependency. The TODO should be rewritten to clarify the policy or removed.",
+        "occurrences": 7
+      }
+    ]
+  },
+  "controlSetReferences": {
+    "primary": "/CLAUDE.md",
+    "secondary": "/.claude/CLAUDE.md",
+    "buildQueue": "/docs/BUILD-QUEUE.md",
+    "verificationProtocol": "/docs/VERIFICATION-PROTOCOL.md",
+    "knownIssues": "/docs/KNOWN_ISSUES.md",
+    "operatingModel": "/docs/delivery-plan/enterprise-delivery-operating-model.md",
+    "enterpriseReadinessPlan": "/docs/delivery-plan/enterprise-readiness-plan.md",
+    "codeOwners": "/.github/CODEOWNERS",
+    "truthCheckScript": "/scripts/check-docs-truth.mjs"
+  },
+  "ciInventory": {
+    "workflows": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/codeql.yml",
+      ".github/workflows/cursor-agent-manual.yml",
+      ".github/workflows/cursor-agent.yml",
+      ".github/workflows/security-audit.yml"
+    ],
+    "notableJobs": [
+      "ci.yml::docs-truth — runs scripts/check-docs-truth.mjs as a hard gate",
+      "ci.yml::server-quality — server tsc + Vitest + prisma validate",
+      "ci.yml::client-quality — client tsc",
+      "codeql.yml::CodeQL security-extended",
+      "security-audit.yml::npm audit across workspaces"
+    ],
+    "missing": [
+      "Integration suite that runs against docker-compose Postgres/Redis/MinIO — currently manual; sequenced to Phase 20."
+    ]
+  },
+  "anomalies": {
+    "stalePhaseLabels": [
+      "Multiple `// TODO ... in Phase 9` markers in client/src/services/*.service.ts despite Phase 9 being closed (see todosAndFixmes above)."
+    ],
+    "duplicateBarrelDirectories": [
+      "server/src/api/admissions vs server/src/api/admissions-events",
+      "server/src/api/assessment (group-index) vs server/src/api/assessments (router)",
+      "server/src/api/curriculum (group-index) — composite of programmes/modules etc.",
+      "server/src/api/enrolment (group-index) vs server/src/api/enrolments (router)",
+      "server/src/api/identity (group-index) vs no specific runtime entity",
+      "server/src/api/platform (group-index)",
+      "server/src/api/progression (group-index) vs server/src/api/progressions (router)",
+      "server/src/api/student-support (group-index) — composite",
+      "server/src/api/compliance (group-index) — composite"
+    ],
+    "duplicateBarrelDirectoriesNote": "These 9 directories are intentional barrel groups introduced in Phase 12a. They expose `/api/v1/{group}/health` aggregator endpoints over the existing flat routers. They are not duplicate domains and should not be refactored."
+  },
+  "phase16State": {
+    "merged": [
+      "16A — Application lifecycle state enforcement (PR #96)",
+      "16B — Offer-condition evaluation and auto-promotion (PR #96, fail-soft fix in PR #98)",
+      "16C — Applicant→Student conversion endpoint with idempotency (PR #99)",
+      "16D — Cascade cleanup, clearance-checks tests, applicant/admissions UI honesty"
+    ],
+    "outstanding": [
+      "16E — UI 'Convert to Student' affordance on admissions ApplicationDetail page",
+      "16F — Finance handoff (enrolment.created → FeeAssessment) — sequenced to Phase 18A"
+    ]
+  }
+}

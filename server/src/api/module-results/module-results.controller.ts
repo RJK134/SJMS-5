@@ -1,0 +1,85 @@
+import type { Request, Response, NextFunction } from 'express';
+import * as service from './module-results.service';
+import * as marksService from '../marks/marks.service';
+
+export async function list(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.list(req.query as unknown as service.ModuleResultListQuery);
+    res.json({ success: true, ...result });
+  } catch (err) { next(err); }
+}
+
+export async function getById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.getById(id);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function create(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.create(req.body, req.user?.sub ?? 'system', req);
+    res.status(201).json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function update(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.update(id, req.body, req.user?.sub ?? 'system', req);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    await service.remove(id, req.user?.sub ?? 'system', req);
+    res.status(204).send();
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /v1/module-results/:id/ratify (Phase 17B).
+ *
+ * Drives the PROVISIONAL → CONFIRMED transition through the canonical
+ * update() flow so the cross-entity guard, audit, and ratified event all
+ * fire. boardId is optional — supply it to record which exam board
+ * decided the ratification.
+ */
+export async function ratify(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.ratifyModuleResult(
+      id,
+      req.body as service.RatifyModuleResultInput,
+      req.user?.sub ?? 'system',
+      req,
+    );
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /v1/module-results/generate (Phase 17C).
+ *
+ * Cohort-level batch generation. Routes through `marks.service.generateModuleResultsForCohort`
+ * — the implementation lives there to avoid a circular import (marks.service already
+ * imports module-results.service for the per-row aggregation persist path). Per-row
+ * failures are captured into the response summary rather than aborting the cohort.
+ */
+export async function generate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = req.body as { moduleId: string; academicYear: string } & marksService.CohortGenerationOptions;
+    const { moduleId, academicYear, ...options } = body;
+    const data = await marksService.generateModuleResultsForCohort(
+      moduleId,
+      academicYear,
+      options,
+      req.user?.sub ?? 'system',
+      req,
+    );
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
