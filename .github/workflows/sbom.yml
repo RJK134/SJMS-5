@@ -1,0 +1,80 @@
+name: SBOM
+
+# Phase 0 batch 0M — supply-chain hardening (closes deep-review P0 #5).
+#
+# Generates a CycloneDX Software Bill of Materials (SBOM) for the
+# root, server, and client workspaces using @cyclonedx/cdxgen. Attaches
+# the result as a workflow artefact retained for 90 days.
+#
+# The SBOM is INFORMATIONAL today (advisory). It becomes a required
+# review check in Phase 12 (pilot readiness) per
+# docs/SJMS-5-BUILD-QUEUE.md row "cosign image signing" (12K) — the
+# signing pipeline consumes the SBOM as its provenance manifest.
+#
+# Trigger: every PR + every push to main. Pre-merge SBOMs let reviewers
+# spot a new dependency before it lands; post-merge SBOMs anchor the
+# main-branch dependency surface for audit replay.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cyclonedx:
+    name: Generate CycloneDX SBOM (root + server + client)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root + workspace dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate SBOM (CycloneDX, JSON)
+        # @cyclonedx/cdxgen reads the package-lock.json + workspace
+        # manifests; --output stdout would be simpler but the action
+        # writes a deterministic bom.json so downstream Trivy / cosign
+        # steps can locate it by name.
+        run: |
+          mkdir -p evidence/sbom
+          npx -y -p @cyclonedx/cdxgen@^11 cdxgen \
+            -o evidence/sbom/bom.json \
+            -t js \
+            --spec-version 1.5 \
+            --include-formulation false \
+            --recurse \
+            .
+
+      - name: Summarise SBOM in step summary
+        run: |
+          {
+            echo "### CycloneDX SBOM"
+            echo ""
+            echo "- File: \`evidence/sbom/bom.json\`"
+            if [ -f evidence/sbom/bom.json ]; then
+              COMPONENTS=$(jq -r '.components | length' evidence/sbom/bom.json 2>/dev/null || echo '?')
+              echo "- Components: $COMPONENTS"
+              SPEC=$(jq -r '.specVersion' evidence/sbom/bom.json 2>/dev/null || echo '?')
+              echo "- Spec version: $SPEC"
+            else
+              echo "- ERROR: bom.json not produced"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBOM artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom-${{ github.sha }}
+          path: evidence/sbom/bom.json
+          if-no-files-found: error
+          retention-days: 90

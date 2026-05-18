@@ -113,7 +113,9 @@ services:
   # It runs once to issue the certificate, then exits.
   # Renewal is handled by a cron job or periodic docker compose run.
   certbot:
-    image: certbot/certbot:latest
+    # Pinned per docs/operations/ci-and-branch-protection.md §6
+    # supply-chain hardening (Phase 0 batch 0M).
+    image: certbot/certbot:v2.11.0
     container_name: sjms-certbot
     profiles:
       - letsencrypt
