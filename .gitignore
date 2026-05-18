@@ -1,8 +1,78 @@
+# Dependencies
 node_modules/
-output/*
-!output/.gitkeep
-*.log
-.DS_Store
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
 .env
 .env.local
+.env.*.local
+
+# Prisma
+.prisma/
+prisma/*.db
+prisma/migrations/**/migration_lock.toml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code — personal overrides, never tracked
+.claude/settings.local.json
+# Agent-session worktree snapshots and stray transcript notes — never tracked.
+# Live worktrees are managed by `git worktree`, not by committing trees.
+.claude/worktrees/
+.claude/*.txt
+
+# Claude Code — transient agent worktrees and captured chat transcripts.
+# These are created by interactive sessions and must never be committed.
+.claude/worktrees/
+.claude/*.txt
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker volumes (local)
+pgdata/
+redisdata/
+miniodata/
+n8ndata/
+
+# TLS certificates and private keys — NEVER commit
+docker/nginx/certs/*.pem
+docker/nginx/certs/*.crt
+docker/nginx/certs/*.key
+docker/nginx/certs/*.bak
+*.pem
+*.crt
+*.key
+!docker/nginx/certs/.gitkeep
+
+# Test coverage
 coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+.cache/
+.temp/
+
+
+# Office temp files
+~$*

@@ -1,0 +1,118 @@
+name: Preview smoke check
+
+# Verifies that the Vercel-hosted API serving the Vercel client preview is
+# responding with seeded data. Catches regressions where a deploy lands but
+# the migrate + seed step in scripts/deploy-init.ts silently fails —
+# stakeholders should never see an empty preview.
+#
+# Triggered:
+#   - On manual dispatch (any branch) so we can run it ad hoc against an
+#     environment that has just deployed.
+#   - On a daily schedule against the main preview URL so a long-running
+#     drift between deploy and seed gets surfaced inside 24 hours.
+#
+# How it works:
+#   - Hits GET ${PREVIEW_API_URL}/api/v1/students with the Internal Service Key.
+#     The /api prefix is auto-appended when PREVIEW_API_URL does not already
+#     end in /api, so either shape works.
+#   - Asserts the response payload's `data` array contains > 100 entries.
+#   - Logs the response on failure so the operator can read the body.
+#
+# Configuration:
+#   - PREVIEW_API_URL secret/variable: the Vercel server project URL.
+#     Typical shapes (either accepted, the step normalises):
+#       https://sjms-2-5-server.vercel.app
+#       https://sjms-2-5-server.vercel.app/api
+#       https://sjms-2-5-server-<branch>-<team>.vercel.app (preview alias)
+#   - INTERNAL_SERVICE_KEY secret: the same value the Express server has set
+#     in its Vercel environment variables; supplied via the
+#     X-Internal-Service-Key header so the smoke check bypasses Keycloak
+#     and hits the route as a trusted service caller (matching
+#     server/src/middleware/auth.ts authenticateJWT).
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: API base URL to smoke-check (overrides the secret)
+        required: false
+        type: string
+  schedule:
+    - cron: "17 6 * * *" # 06:17 UTC daily
+
+jobs:
+  smoke:
+    name: Smoke-check API for seeded data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve target URL
+        id: target
+        run: |
+          URL="${{ inputs.preview_url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ vars.PREVIEW_API_URL }}"
+          fi
+          if [ -z "$URL" ]; then
+            echo "::error::No PREVIEW_API_URL provided (input or repository variable)"
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Smoke target: $URL"
+
+      - name: Hit /api/v1/students and assert >100 records
+        env:
+          PREVIEW_API_URL: ${{ steps.target.outputs.url }}
+          INTERNAL_SERVICE_KEY: ${{ secrets.INTERNAL_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$INTERNAL_SERVICE_KEY" ]; then
+            echo "::error::INTERNAL_SERVICE_KEY secret is not set"
+            exit 1
+          fi
+
+          # The Express server mounts at /api/v1 (see server/src/index.ts).
+          # Normalise PREVIEW_API_URL so it works whether the operator
+          # configured it with or without a trailing /api segment:
+          #   https://sjms-2-5-server.vercel.app       → adds /api
+          #   https://sjms-2-5-server.vercel.app/api   → leaves as-is
+          # Any trailing slash is also stripped.
+          BASE_URL="${PREVIEW_API_URL%/}"
+          if [[ "$BASE_URL" != */api ]]; then
+            BASE_URL="$BASE_URL/api"
+          fi
+          echo "Resolved base URL: $BASE_URL"
+
+          BODY=$(mktemp)
+          STATUS=$(curl -sS -o "$BODY" -w "%{http_code}" \
+            -H "X-Internal-Service-Key: $INTERNAL_SERVICE_KEY" \
+            "$BASE_URL/v1/students?limit=200")
+
+          echo "HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Smoke check failed: expected HTTP 200, got $STATUS"
+            cat "$BODY"
+            exit 1
+          fi
+
+          # Defensive jq: if the response is not JSON, or `.data` is missing /
+          # not an array, default the count to 0 and surface the body so the
+          # operator can see the unexpected shape rather than a cryptic
+          # "integer expression expected" shell error from the [ -lt ] test.
+          COUNT=$(jq -r 'if (.data | type) == "array" then (.data | length) else 0 end' < "$BODY" 2>/dev/null || echo 0)
+          if ! [[ "$COUNT" =~ ^[0-9]+$ ]]; then
+            echo "::error::Smoke check failed: response was not a JSON object with a .data array."
+            echo "Response body:"
+            cat "$BODY"
+            exit 1
+          fi
+          echo "Returned $COUNT students"
+
+          if [ "$COUNT" -lt 100 ]; then
+            echo "::error::Smoke check failed: expected >100 students, got $COUNT"
+            cat "$BODY"
+            exit 1
+          fi
+
+          echo "Smoke check passed."

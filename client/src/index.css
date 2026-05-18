@@ -1,0 +1,192 @@
+/* ── SJMS 2.5 client global stylesheet (Tailwind CSS v4) ────────────────────────
+ *
+ * Migrated from the Tailwind v3 JS-config layout (chore/tailwind-v4-migration).
+ * The previous tailwind.config.ts has been removed; all theme tokens now live
+ * in the @theme block below using v4's CSS-first authoring model.
+ *
+ * Notes for future contributors:
+ *   - tailwindcss-animate is intentionally retained via @plugin for now. It
+ *     loads cleanly under v4's @plugin directive, while the
+ *     accordion-up / accordion-down keyframes consumed by Radix Accordion
+ *     are defined locally in this file below. A future pass may swap the
+ *     plugin for tw-animate-css.
+ *   - The HSL CSS variables in :root and .dark are dormant under the current
+ *     theme mapping (which uses hex values directly, matching the previous
+ *     JS config). They are kept so a follow-on can wire them up if/when
+ *     full shadcn HSL theming is desired.
+ *   - V4 breaking-change class renames (outline-none → outline-hidden,
+ *     shadow-sm → shadow-xs, bare border default colour, bare ring default)
+ *     are deliberately deferred to a follow-up PR for visual review under
+ *     v4 defaults first.
+ */
+
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* Class-based dark mode — replaces v3 `darkMode: "class"` config option.
+ * Uses :where(.dark, .dark *) so the variant matches both the `.dark`
+ * element itself AND any descendants, with zero added specificity
+ * (matches the official Tailwind v4 docs pattern). The previous
+ * `(&:is(.dark *))` form only matched descendants AND added specificity. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ── Colour scale: primary (FHE Navy) ───────────────────────── */
+  --color-primary: #1e3a5f;
+  --color-primary-50: #f0f5fa;
+  --color-primary-100: #dae4f0;
+  --color-primary-200: #b5c9e1;
+  --color-primary-300: #8badd0;
+  --color-primary-400: #6691bf;
+  --color-primary-500: #4175ae;
+  --color-primary-600: #345e8c;
+  --color-primary-700: #1e3a5f;
+  --color-primary-800: #162c48;
+  --color-primary-900: #0f1e31;
+  --color-primary-950: #081019;
+
+  /* ── Colour scale: secondary (Slate) ────────────────────────── */
+  --color-secondary: #334155;
+  --color-secondary-50: #f8fafc;
+  --color-secondary-100: #f1f5f9;
+  --color-secondary-200: #e2e8f0;
+  --color-secondary-300: #cbd5e1;
+  --color-secondary-400: #94a3b8;
+  --color-secondary-500: #64748b;
+  --color-secondary-600: #475569;
+  --color-secondary-700: #334155;
+  --color-secondary-800: #1e293b;
+  --color-secondary-900: #0f172a;
+  --color-secondary-950: #020617;
+
+  /* ── Colour scale: accent (Amber) ──────────────────────────── */
+  --color-accent: #d97706;
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+  --color-accent-800: #92400e;
+  --color-accent-900: #78350f;
+  --color-accent-950: #451a03;
+
+  /* ── Surface tokens (shadcn-style flat names) ───────────────────── */
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+
+  /* ── Status tokens ─────────────────────────────────────── */
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-success: #22c55e;
+  --color-success-foreground: #ffffff;
+  --color-warning: #f59e0b;
+  --color-warning-foreground: #ffffff;
+
+  /* ── Form controls and focus ring ───────────────────────────── */
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
+  --color-ring: #1e3a5f;
+
+  /* ── Type stack ─────────────────────────────────────────── */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Border radii (matched to the previous JS config calc-pair) ─────── */
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+
+  /* ── Animations ─────────────────────────────────────────── */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+/*
+ * Keyframes used by the @theme animations above. They live at the top level
+ * (not inside @theme) because v4's @theme block accepts variables only.
+ */
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+/*
+ * shadcn HSL variable bank, currently dormant under the hex-based theme above.
+ * Retained so a future pass can either wire these into @theme via
+ * `--color-background: hsl(var(--background))` (etc.) or remove them.
+ */
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 213 52% 24%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 32 95% 44%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 213 52% 24%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 13%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 213 52% 35%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 25% 40%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 32 95% 50%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 222 47% 16%;
+    --muted-foreground: 215 20% 65%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 213 52% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
