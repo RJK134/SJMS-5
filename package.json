@@ -7,6 +7,8 @@
   "scripts": {
     "generate": "node scripts/generate-synthetic-dataset.mjs",
     "generate:dry-run": "node scripts/generate-synthetic-dataset.mjs --dry-run --out output/dry-run",
+    "generate:sample": "node scripts/generate-synthetic-dataset.mjs --scale 0.05 --out output/sample",
+    "import-sjms-dataset": "node scripts/import-sjms-dataset.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

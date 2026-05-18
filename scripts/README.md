@@ -5,8 +5,18 @@ history) as CSV files staged on `gdrive5tb:sjms-5-dataset/`. The
 imported dataset populates SJMS-5's Prisma database for Phase 0+
 testing, demos, and benchmarks.
 
+**Headline at the 2026-05-17 snapshot:**
+- 298 tables / 5,292,376 rows / ~824MB
+- 40,000 active students + 12,000 alumni
+- 980 staff / 10,000 applicants / 625 programmes / 3,360 modules
+- 5 years of enrolment + assessment + finance history
+- Generation: ~55s single-threaded Node 18; byte-identical reruns at
+  fixed seed
+
 See [`../docs/dataset/SCHEMA-MAPPING.md`](../docs/dataset/SCHEMA-MAPPING.md)
-for the architectural contract this generator implements.
+for the architectural contract and
+[`../docs/dataset/DATASET-STATS.md`](../docs/dataset/DATASET-STATS.md)
+for the per-table breakdown.
 
 ## Quick start
 
