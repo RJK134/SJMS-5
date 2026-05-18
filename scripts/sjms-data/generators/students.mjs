@@ -293,7 +293,10 @@ export async function generate(ctx) {
         fundingCompletion: null, typeOfYear: 'STANDARD', instancePeriod: '1',
         tenantId: ctx.tenantId,
       });
-      ctx.ids.enrolmentIds.push({ id: enrolmentId, studentId, programmeId: prog.id, ayId, status: yearStatus });
+      ctx.ids.enrolmentIds.push({
+        id: enrolmentId, studentId, programmeId: prog.id, ayId, status: yearStatus,
+        fundingSource: fundingSourceForFeeStatus(feeStatus, rng),
+      });
 
       // StudentInstance + InstancePeriod + EnrolmentOccurrence (HESA shape)
       const instanceId = `si-${enrolmentId.slice(3)}`;
