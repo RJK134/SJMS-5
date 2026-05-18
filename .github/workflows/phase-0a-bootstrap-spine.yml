@@ -77,7 +77,13 @@ jobs:
           path: sjms-5
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN cannot push to .github/workflows/* — that's a
+          # hardcoded GitHub Actions protection (no `workflows`
+          # permission exists in the `permissions:` schema). The SJMS-2.5
+          # spine includes its own workflow files (ci-failure-to-issue.yml
+          # etc.), so we need a PAT with the `workflow` scope. SJMS_V4_TOKEN
+          # is the operator's gh CLI token which has that scope.
+          token: ${{ secrets.SJMS_V4_TOKEN }}
 
       - name: Clone SJMS-2.5 (public, no auth)
         env:
