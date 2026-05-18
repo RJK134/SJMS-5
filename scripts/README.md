@@ -88,3 +88,12 @@ The generator targets `RJK134/sjms-v4-integrated/prisma/schema.prisma`
 @ HEAD (298 models as of 2026-05-17). The manifest records the schema
 hash; importers refuse a snapshot whose schema hash does not match
 their compiled schema.
+
+## Continuous integration
+
+`.github/workflows/dataset-ci.yml` runs on every PR that touches the
+generator, fixtures, or tests. It executes `pnpm test` and then
+generates two `--scale 0.05` snapshots from the same seed and
+sha256-compares them — any divergence fails the build. This is the
+guard against accidental non-determinism (a `Math.random()` slipping
+in, an unsorted `Map` iteration, a `Date.now()` call, etc.).
