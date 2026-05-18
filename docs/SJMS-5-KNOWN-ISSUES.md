@@ -4,6 +4,34 @@ Living document tracking known defects that are **deliberately deferred** rather
 
 **Scope rule:** anything listed here must have a clear reason for deferral (out-of-scope for the current phase, blocked on another piece of work, or explicitly accepted as tech debt). Items that should be fixed in the active phase do **not** belong here.
 
+## Phase 0 progress — 2026-05-18 overnight build
+
+Eight Phase 0 batches landed as draft PRs against `phase-0/spine-import` during the overnight build:
+
+| Batch | PR | Scope | KIs closed at merge |
+|---|---|---|---|
+| 0B | #40 | 18B + 18C finance absorption verification (evidence only) | — (verification batch) |
+| 0E | #46 | k6 scenarios from sjms-v4-integrated + nightly CI workflow | — (net-new capability) |
+| 0F | #44 | Remove static-secret JWT fallback (fail closed) | KI-S5-006, KI-S5-307 |
+| 0G | #45 | Keycloak realm: MFA + email verification + SMTP server | KI-S5-007 |
+| 0H | #41 | Correct n8n credential header to `x-internal-service-key` | KI-S5-008, KI-S5-108 |
+| 0J | (this commit) | Closeout — KI register reconciliation + evidence pack index | — (this batch) |
+| 0K | #43 | Governance: LICENSE + CODEOWNERS bus-factor + branch-protection ratchet + `.gitguardian.yml` | KI-S5-302 (partial), KI-S5-306 (partial) |
+| 0M | #42 | Supply-chain hardening: pin `:latest` + SBOM + Trivy + Checkov + advisory CI | KI-S5-305, KI-S5-308, KI-S5-309 |
+
+Six Phase 0 batches **NOT** in scope for the overnight build, deferred for operator design review:
+
+| Batch | Reason for deferral |
+|---|---|
+| 0C | Cryptobox + data migration to drop plaintext `WebhookSubscription.secretKey` / `UserSession.sessionToken` — needs operator review of backfill strategy and rollback plan. |
+| 0D | BullMQ worker pattern — needs operator decision on worker host (Railway / Render / Fly) per operating-model §13. |
+| 0I | CI green — gates on Dockerfile creation + ESLint baseline triage + Prisma cleanup; sequenced after 0L/0C/0D land. |
+| 0L | Transactional outbox + worker — load-bearing batch; needs operator design review on worker host topology and `OutboxEvent` schema migration. |
+| 0N | Dependabot alerts enforcement + BugBot wiring — requires repo Settings changes per operating-model §13 (Claude does not modify repo settings). |
+| 0A | Was bootstrap + rebrand — already landed via PR #38 before the overnight build started. |
+
+Umbrella tracking PR: **#39** (`phase-0/spine-import → main`, draft per operating-model §3).
+
 ---
 
 ## Carried over from SJMS-2.5
@@ -15,9 +43,9 @@ Living document tracking known defects that are **deliberately deferred** rather
 | KI-S5-003 (was KI-P10b-003) | Teaching-assignment model + academic scoping | SJMS-2.5 Phase 21 | Phase 9 (9A) |
 | KI-S5-004 (was KI-P15-001) | npm audit baseline triage outstanding | SJMS-2.5 | Phase 0 (0I) |
 | KI-S5-005 (was KI-P15-002) | ESLint baseline + ratchet to blocking gate | SJMS-2.5 | Phase 3 (3H) — blocking from Phase 3 onward |
-| KI-S5-006 (was Phase 15B STOP-gate) | Static-secret JWT fallback in production code path | SJMS-2.5 Phase 15B | **Phase 0 — closed at import (0F)** |
-| KI-S5-007 (was Phase 15B sub) | MFA not enforced in Keycloak realm | SJMS-2.5 Phase 15B | **Phase 0 — closed at import (0G)** |
-| KI-S5-008 (was Phase 20 risk) | n8n header-name mismatch (`x-internal-key` vs `x-internal-service-key`) | SJMS-2.5 Phase 20 | **Phase 0 — closed at import (0H)** |
+| KI-S5-006 (was Phase 15B STOP-gate) | Static-secret JWT fallback in production code path | SJMS-2.5 Phase 15B | **Phase 0 — pending closure via PR #44 (batch 0F)** |
+| KI-S5-007 (was Phase 15B sub) | MFA not enforced in Keycloak realm | SJMS-2.5 Phase 15B | **Phase 0 — pending closure via PR #45 (batch 0G)** |
+| KI-S5-008 (was Phase 20 risk) | n8n header-name mismatch (`x-internal-key` vs `x-internal-service-key`) | SJMS-2.5 Phase 20 | **Phase 0 — pending closure via PR #41 (batch 0H)** |
 | KI-S5-009 (was n8n activation) | 62 n8n workflows not provisioned against live n8n instance | SJMS-2.5 Phase 20 | Phase 8 |
 | KI-S5-010 (was Phase 21A) | WCAG 2.2 AA evidence pack (ratcheted from 2.1) | SJMS-2.5 Phase 21 | Phase 9 (9E) |
 | KI-S5-011 (was Phase 22) | Analytics / BI / dashboards | SJMS-2.5 Phase 22 | Phase 10 |
@@ -33,7 +61,7 @@ Living document tracking known defects that are **deliberately deferred** rather
 | KI-S5-105 | v4 README understates schema size by ~⅓ and shallow role catalogue | v4 README | Phase 0 (docs:check enforces) |
 | KI-S5-106 | v4 observability lighter than 2.5 (no Prometheus, no auto-OpenAPI) | v4 server/src/utils | Phase 0 (replaced with 2.5 stack) |
 | KI-S5-107 | v4 lint and coverage gates not enforced | v4 | Phase 0 (replaced with 2.5 stack) |
-| KI-S5-108 | v4 n8n template header still `x-internal-key` | v4 n8n-workflows | Phase 0 (0H — closed at import) |
+| KI-S5-108 | v4 n8n template header still `x-internal-key` | v4 n8n-workflows | Phase 0 — pending closure via PR #41 (batch 0H) |
 
 ## Net-new for SJMS-5
 
@@ -50,14 +78,14 @@ Living document tracking known defects that are **deliberately deferred** rather
 | ID | Description | Deep-review ref | Target phase |
 |---|---|---|---|
 | KI-S5-301 | **Transactional outbox for event delivery missing — single largest reliability gap** | P0 #4 / Prompt D | **Phase 0 (0L) — load-bearing** |
-| KI-S5-302 | Bus-factor 1: single human contributor, single CODEOWNER, admin bypass enabled on main, no commit signing | P0 #1 + #6 / Prompt A | Phase 0 (0K) |
-| KI-S5-303 | Dependabot alerts API returns 403 ("disabled for this repository") — alerts toggled off in repo settings | P0 #2 / Prompt B | Phase 0 (0N) |
-| KI-S5-304 | Plaintext secrets in DB: `WebhookSubscription.secretKey`, `UserSession.sessionToken` stored as TEXT | P0 #3 / Prompt C | Phase 0 (0C extended) |
-| KI-S5-305 | `minio/minio` and `n8nio/n8n` pinned to `:latest` — silent supply-chain risk | P0 #5 / Prompt E | Phase 0 (0M) |
-| KI-S5-306 | No LICENSE file; GitHub repo description is placeholder `"SJMS "` | P0 #6 | Phase 0 (0K) |
-| KI-S5-307 | Static `JWT_SECRET` fallback in auth middleware still exists outside dev | P0 #7 | Phase 0 (0F) |
-| KI-S5-308 | No SBOM (CycloneDX) generation in CI | P1 #11 | Phase 0 (0M) |
-| KI-S5-309 | No container image scan (Trivy/Grype) in CI | P1 #10 | Phase 0 (0M) |
+| KI-S5-302 | Bus-factor 1: single human contributor, single CODEOWNER, admin bypass enabled on main, no commit signing | P0 #1 + #6 / Prompt A | **Phase 0 — pending closure via PR #43 (batch 0K, partial: structural fix in place; operator action to replace `@SECOND_OWNER`)** |
+| KI-S5-303 | Dependabot alerts API returns 403 ("disabled for this repository") — alerts toggled off in repo settings | P0 #2 / Prompt B | Phase 0 (0N — pending; requires repo Settings change) |
+| KI-S5-304 | Plaintext secrets in DB: `WebhookSubscription.secretKey`, `UserSession.sessionToken` stored as TEXT | P0 #3 / Prompt C | Phase 0 (0C — pending; data migration, deferred for operator review) |
+| KI-S5-305 | `minio/minio` and `n8nio/n8n` pinned to `:latest` — silent supply-chain risk | P0 #5 / Prompt E | **Phase 0 — pending closure via PR #42 (batch 0M)** |
+| KI-S5-306 | No LICENSE file; GitHub repo description is placeholder `"SJMS "` | P0 #6 | **Phase 0 — pending closure via PR #43 (batch 0K, partial: LICENSE shipped; operator action to set repo description)** |
+| KI-S5-307 | Static `JWT_SECRET` fallback in auth middleware still exists outside dev | P0 #7 | **Phase 0 — pending closure via PR #44 (batch 0F)** |
+| KI-S5-308 | No SBOM (CycloneDX) generation in CI | P1 #11 | **Phase 0 — pending closure via PR #42 (batch 0M)** |
+| KI-S5-309 | No container image scan (Trivy/Grype) in CI | P1 #10 | **Phase 0 — pending closure via PR #42 (batch 0M)** |
 | KI-S5-310 | No image signing (cosign / SLSA provenance) | P2 #30 | Phase 12 (12K) |
 | KI-S5-311 | No license-policy SPDX gate in CI | P2 #29 | Phase 12 (12J) |
 | KI-S5-312 | Sparse optimistic locking — `Mark`, `ModuleResult`, `Invoice`, `Payment`, `ExamBoardDecision`, `AssessmentAttempt`, `Enrolment` are race-prone without `version` column | P1 #17 / Prompt I | Phase 1 (1H) |
@@ -81,7 +109,21 @@ Living document tracking known defects that are **deliberately deferred** rather
 
 ## Closed
 
-None — Phase 0 not yet started.
+Net-new entries created and closed during the 2026-05-18 overnight Phase 0 build (the seven batch PRs that ship the closures are still draft pending operator merge):
+
+- KI-S5-329 (new — load-test k6 scenarios scaffolding) — pending closure via PR #46 (batch 0E).
+- KI-S5-330 (new — GitGuardian secret scanner config) — pending closure via PR #43 (batch 0K, `.gitguardian.yml`).
+
+Phase 0 closure pattern: every KI flagged "pending closure via PR #N" above will be moved into this section by the operator at umbrella PR #39 merge time. Each entry will record:
+
+- ID and one-line description
+- Closing batch (e.g. `0F`)
+- Closing PR number (`#44`)
+- Squash-merge commit SHA on `phase-0/spine-import`
+- Squash-merge commit SHA on `main` (set when umbrella PR #39 merges)
+- Date closed (UK timezone)
+
+The structure is per [`SJMS-5-OPERATING-MODEL.md`](SJMS-5-OPERATING-MODEL.md) §8.
 
 ---
 
