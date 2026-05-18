@@ -73,11 +73,12 @@ jobs:
             [ -z "$path" ] && continue
             [ ! -f "$path" ] && { echo "::warning::missing $path"; continue; }
             manifest_sha=$(sha256sum "$path" | awk '{print $1}')
-            # contentSha256 strips wall-clock timestamps and sorts keys
-            # so two regens of the same data anchor identically. This is
-            # what consumers verify against — manifestSha256 is kept for
-            # exact-byte forensics only.
-            content_sha=$(jq -S 'del(.generatedAt, .finishedAt)' "$path" \
+            # contentSha256 strips runtime-only fields (wall-clock
+            # timestamps + the generatorCommit git SHA) and sorts keys
+            # so two regens of the same logical snapshot anchor
+            # identically. This is what consumers verify against —
+            # manifestSha256 is kept for exact-byte forensics only.
+            content_sha=$(jq -S 'del(.generatedAt, .finishedAt, .generatorCommit)' "$path" \
                           | sha256sum | awk '{print $1}')
             schema_hash=$(jq -r '.schemaHash' "$path")
             total_rows=$(jq -r '.totalRows' "$path")

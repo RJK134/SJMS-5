@@ -44,10 +44,13 @@ Two hashes are recorded for different purposes:
 - **`manifestSha256`** — sha256 of the manifest file byte-for-byte.
   Tightest forensic match, but breaks across regens because the
   manifest contains `generatedAt` / `finishedAt` wall-clock fields.
-- **`contentSha256`** — sha256 of the manifest with timestamps stripped
-  and keys recursively sorted (`jq -S 'del(.generatedAt, .finishedAt)'`).
-  Stable across regens of the same logical snapshot, so consumers
-  verify primarily against this.
+- **`contentSha256`** — sha256 of the manifest with runtime-only
+  fields stripped (`generatedAt`, `finishedAt`, `generatorCommit`)
+  and keys recursively sorted
+  (`jq -S 'del(.generatedAt, .finishedAt, .generatorCommit)'`).
+  Stable across regens of the same logical snapshot — even when the
+  generator code has changed but produces identical rows — so
+  consumers verify primarily against this.
 
 The verifier checks `contentSha256` first; a fallback `manifestSha256`
 match still counts as anchored — it just means the lake's bytes are
