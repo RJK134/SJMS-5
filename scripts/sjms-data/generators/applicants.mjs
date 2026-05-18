@@ -205,8 +205,12 @@ export async function generate(ctx) {
   // 5. Prospects (30k pre-applicant marketing list)
   const prospectRows = [];
   const interactionRows = [];
+<<<<<<< phase-D6/students
   const prospectCount = ctx.scaled(30_000);
   for (let p = 0; p < prospectCount; p++) {
+=======
+  for (let p = 0; p < 30_000; p++) {
+>>>>>>> main
     const { first, last } = pickName(rng);
     const id = `prsp-${(p + 1).toString().padStart(6, '0')}`;
     const stage = rng.weighted([['NEW', 30], ['NURTURING', 35], ['QUALIFIED', 20],
@@ -258,7 +262,11 @@ export async function generate(ctx) {
   const interviewRows = [];
   const clearingRows = [];
 
+<<<<<<< phase-D6/students
   const APPLICANT_COUNT = ctx.scaled(10_000);
+=======
+  const APPLICANT_COUNT = 10_000;
+>>>>>>> main
   for (let a = 0; a < APPLICANT_COUNT; a++) {
     const { first, last } = pickName(rng);
     const applicantNum = (a + 1).toString().padStart(6, '0');
