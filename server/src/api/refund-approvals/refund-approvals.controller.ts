@@ -38,3 +38,30 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
     res.status(204).end();
   } catch (err) { next(err); }
 }
+
+// ── Phase 1D two-step workflow handlers ───────────────────────────────────
+
+export async function approve(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.approve(id, req.user?.sub ?? 'system', req);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function reject(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const reason = (req.body as { reason?: string } | undefined)?.reason;
+    const data = await service.reject(id, req.user?.sub ?? 'system', reason, req);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function process(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.process(id, req.user?.sub ?? 'system', req);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
