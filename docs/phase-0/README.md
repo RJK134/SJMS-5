@@ -53,9 +53,9 @@ This is **operator-driven**, one-off, takes ~2 minutes.
 
 | Batch | Title | Status |
 |---|---|---|
-| 0A1 | Bootstrap SJMS-2.5 spine via GitHub Action | scaffolded, awaits operator trigger |
-| 0A2 | Rebrand (package.json, CLAUDE.md, container names, URLs, Vercel project, docs:check) | not started |
-| 0B | Import 2.5 18B + 18C finance work as sub-commits | not started |
+| 0A1 | Bootstrap SJMS-2.5 spine via GitHub Action | **DONE 2026-05-18** — PR #34 (token fix) + workflow run 26057111322 → branch `phase-0/spine-import` created at commit `7d0c6ac` |
+| 0A2 | Rebrand (package.json, CLAUDE.md, container names, URLs, Vercel project, docs:check) | **DONE 2026-05-18** — PR #38, 23 files / +60 / −56 |
+| 0B | Import 2.5 18B + 18C finance work as sub-commits | **DONE 2026-05-18 (no-op)** — 18B + 18C (and 18D) already merged into SJMS-2.5/`main` before 0A1 fired; the spine import captured them. `git diff sjms25/main phase-0/spine-import -- server/src/` is empty. All 9 finance test files present (28 + 21 + 21 + 20 pure-function tests in `fee-calculation` / `invoice-composition` / `payment-allocation` / `payment-plan-schedule` plus 16 + 16 + 35 + 13 + 25 service-orchestration tests in `fee-assessments` / `invoices` / `payments` / `payment-plans` / `payment-instalments` services). Test-suite execution moved to 0I where the full CI baseline runs. |
 | 0C | MinIO + AES-256-GCM + cryptobox (extends secrets-at-rest) | not started |
 | 0D | BullMQ + Redis worker pattern | not started |
 | 0E | k6 scenarios | not started |
