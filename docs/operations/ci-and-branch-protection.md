@@ -116,3 +116,66 @@ the fix with content changes.
 
 The honest framing is: these are *known omissions* with named owners and
 scheduled ratchets — they are not silent gaps.
+
+---
+
+## 6. Supply-chain hardening (Phase 0 batch 0M)
+
+Closes deep-review P0 #5 and P1 #10–11. Lifts SJMS-5 from "advisory
+secret-scan and CodeQL" to a multi-layer supply-chain posture before
+Phase 0 closes.
+
+### 6.1 Pinned image tags
+
+`docker-compose.yml` and `docker/docker-compose.prod.yml` no longer pull
+floating `:latest` tags. Every image is pinned to a specific tag so the
+container surface is reproducible across the local-dev, staging, and
+production environments.
+
+| Image | Pin | File |
+|---|---|---|
+| `postgres` | `16-alpine` | `docker-compose.yml` (was already pinned by major) |
+| `redis` | `7-alpine` | `docker-compose.yml` (was already pinned by major) |
+| `quay.io/keycloak/keycloak` | `24.0` | `docker-compose.yml` (was already pinned) |
+| `minio/minio` | `RELEASE.2024-12-18T13-15-44Z` | `docker-compose.yml` (pinned in 0M) |
+| `n8nio/n8n` | `1.71.0` | `docker-compose.yml` (pinned in 0M) |
+| `nginx` | `1.27-alpine` | `docker-compose.yml` (pinned in 0M; previously `alpine`) |
+| `certbot/certbot` | `v2.11.0` | `docker/docker-compose.prod.yml` (pinned in 0M) |
+
+**Bump procedure.** When the operator wants to bump a pinned image:
+
+1. Update the tag in the relevant `docker-compose*.yml` file.
+2. Update the row in this table.
+3. Run the `Container scan` workflow against the new tag. Address any
+   HIGH / CRITICAL findings before merging.
+4. Note the rationale in the PR body (security fix? feature need?
+   deprecation?).
+5. The post-merge `Container scan` run on `main` is the durable
+   audit record of the bump.
+
+### 6.2 New CI workflows
+
+| Workflow | File | Trigger | Required? | What it does |
+|---|---|---|---|---|
+| `SBOM` | `.github/workflows/sbom.yml` | PR + push to main | Advisory in Phase 0; required in Phase 12 | CycloneDX SBOM (root + workspaces) attached as artefact (90 d retention). |
+| `Container scan` | `.github/workflows/container-scan.yml` | PR + push to main | Required from Phase 0 close | Trivy against API + client images. Fails on HIGH/CRITICAL; allow-list at `docs/operations/trivy-allowlist.yaml`. SARIF uploaded to GitHub code-scanning. |
+| `IaC scan (Checkov)` | `.github/workflows/iac-scan.yml` | PR + push to main | Advisory in Phase 0; required in Phase 12 | Checkov against Dockerfiles, docker-compose, nginx, future kubernetes manifests. SARIF uploaded to GitHub code-scanning. |
+
+### 6.3 Trivy allow-list discipline
+
+`docs/operations/trivy-allowlist.yaml` carries every intentional
+HIGH/CRITICAL suppression. Each entry MUST record CVE/GHSA id,
+one-line description, justification, review-by date (ISO 8601), and
+owner. Today's posture: zero active suppressions — every finding must
+be remediated, not suppressed. The file's structure exists so the
+convention is in place from the moment the first genuine deferral is
+required.
+
+### 6.4 Auto-merge readiness
+
+Per [`docs/SJMS-5-OPERATING-MODEL.md`](../SJMS-5-OPERATING-MODEL.md) §14,
+auto-merge for Dependabot PRs activates after batch 0N closes. The
+required-checks set then becomes: typecheck, prisma validate, vitest,
+docs:check, CodeQL, npm audit, `Container scan`, `SBOM`, and
+`security-meta-check`. `IaC scan` and the (Phase 12) cosign provenance
+check sit alongside as advisory until their ratchet phase.

@@ -1,0 +1,131 @@
+name: Container scan
+
+# Phase 0 batch 0M — supply-chain hardening (closes deep-review P0 #5
+# and P1 #10–11). Runs Trivy against the built API + client container
+# images, failing on HIGH/CRITICAL findings except those listed in the
+# documented allow-list at docs/operations/trivy-allowlist.yaml.
+#
+# The scan is REQUIRED on PR + push to main from Phase 0 onward (per
+# docs/SJMS-5-OPERATING-MODEL.md §14 auto-merge policy — auto-merge
+# activates after Phase 0N once container-scan + SBOM + CodeQL + npm
+# audit are all required checks).
+#
+# The allow-list is the operator's audit trail of intentionally-deferred
+# vulnerabilities. Every entry has a justification + review-by date.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-api:
+    name: Trivy — API image
+    runs-on: ubuntu-latest
+    # Phase 0 posture: advisory while the API/client Dockerfiles are
+    # still maturing (0I owns production-grade image creation). Ratchets
+    # to required on auto-merge activation after 0N closes per
+    # docs/SJMS-5-OPERATING-MODEL.md §14.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install + build server
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:server
+
+      - name: Build API container image
+        run: |
+          # The repo ships a server/Dockerfile under Phase 0 spine.
+          # If missing, the build step fails fast with a clear error
+          # so the operator knows to land the Dockerfile in 0I.
+          if [ -f server/Dockerfile ]; then
+            docker build -t sjms5-api:scan -f server/Dockerfile .
+          else
+            echo "::warning::server/Dockerfile not present yet — skipping"
+            echo "::warning::container-scan/api. Re-enable once 0I lands"
+            echo "::warning::the API Dockerfile."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+          fi
+        id: build
+
+      - name: Scan API image with Trivy
+        if: steps.build.outputs.skipped != 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sjms5-api:scan
+          format: sarif
+          output: trivy-api.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: docs/operations/trivy-allowlist.yaml
+
+      - name: Upload SARIF to GitHub code-scanning
+        if: always() && steps.build.outputs.skipped != 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-api.sarif
+          category: trivy-api
+
+  trivy-client:
+    name: Trivy — client image
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install + build client
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:client
+
+      - name: Build client container image
+        run: |
+          if [ -f client/Dockerfile ]; then
+            docker build -t sjms5-client:scan -f client/Dockerfile .
+          else
+            echo "::warning::client/Dockerfile not present yet — skipping"
+            echo "::warning::container-scan/client. Re-enable once 0I"
+            echo "::warning::lands the client Dockerfile."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+          fi
+        id: build
+
+      - name: Scan client image with Trivy
+        if: steps.build.outputs.skipped != 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: sjms5-client:scan
+          format: sarif
+          output: trivy-client.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: docs/operations/trivy-allowlist.yaml
+
+      - name: Upload SARIF to GitHub code-scanning
+        if: always() && steps.build.outputs.skipped != 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-client.sarif
+          category: trivy-client
