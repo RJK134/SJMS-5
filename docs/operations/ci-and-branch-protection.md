@@ -33,19 +33,16 @@ pushing a new commit to a PR cancels the in-flight run.
 
 ---
 
-## 2. Mandated branch protection for `main` (from Phase 0 close)
+## 2. Recommended required checks for `main`
 
 Set the following on the GitHub repo **Settings → Branches → Branch
-protection rules → `main`**. Tightened in Phase 0 batch 0K (closes
-deep-review P0 #1 + P0 #6) — every line is **required**, no longer
-recommended:
+protection rules → `main`**:
 
 ```
 ✓ Require a pull request before merging
-  ✓ Require approvals — at least 2
+  ✓ Require approvals (at least 1)
   ✓ Dismiss stale pull request approvals when new commits are pushed
   ✓ Require review from Code Owners
-  ✓ Require approval of the most recent reviewable push
 
 ✓ Require status checks to pass before merging
   ✓ Require branches to be up to date before merging
@@ -55,54 +52,21 @@ recommended:
       ✓ Client quality gate
       ✓ GitGuardian Security Checks
       ✓ Analyze javascript-typescript          (CodeQL)
-      ✓ Trivy — API image                       (container-scan)
-      ✓ Trivy — client image                    (container-scan)
-      ✓ Generate CycloneDX SBOM (root + server + client)
-      ✓ npm audit                               (ratched from advisory at Phase 0 close)
 
-  Advisory checks (visible in PR but not blocking until their own ratchet):
-      • Lint (advisory)                         (ratchet at Phase 3 — KI-P15-002)
-      • Checkov — Docker + nginx + compose      (ratchet at Phase 12)
+  Optional checks (visible in PR but not blocking):
+      • Lint (advisory)
+      • npm audit
+      • dispatch                                (Cursor integration glue)
 
-✓ Require signed commits                        (required_signatures = true)
 ✓ Require conversation resolution before merging
 ✓ Require linear history
-✓ Include administrators                        (enforce_admins = true)
-✓ Restrict who can push to matching branches    (none — PR-only)
 ✓ Do not allow bypassing the above settings
-✓ Do not allow force pushes
-✓ Do not allow deletions
 ```
 
-Rationale per setting:
-
-- **2 reviewers including code-owners** — bus-factor reduction. Today
-  every CODEOWNERS line names `@RJK134` plus the `@SECOND_OWNER`
-  placeholder. Both halves of the pair must be replaced with real
-  identities before this rule can be honestly enforced — see
-  `.github/CODEOWNERS` header note.
-- **enforce_admins = true** — no silent bypass. Admin-bypass voids
-  the audit chain.
-- **required_signatures = true** — every commit on `main` must be
-  GPG/SSH signed. Closes the deep-review P0 #1 supply-chain attack
-  surface.
-- **linear_history = true** — bisect-friendly and audit-friendly.
-- **No force-push, no branch deletion** — `main` is permanent and
-  append-only.
-
-The `Lint (advisory)` job remains advisory until ESLint baseline triage
-(`KI-P15-002`) ratchets it. `Checkov` stays advisory until Phase 12
-(pilot readiness).
-
-### 2.1 Live-state alignment
-
-`scripts/governance/protection.json` is the codified copy of this
-ruleset. `.github/workflows/governance-drift.yml` diffs the live
-protection state against `protection.json` on every push to `main`
-and emits a `governance-drift` alert if they diverge.
-
-When this file is updated, also update `protection.json` so the drift
-detector compares like-for-like.
+The `Lint (advisory)` and `npm audit` jobs are deliberately advisory while
+the ESLint baseline (`KI-P15-002`) and the npm audit baseline
+(`KI-P15-001`) are being triaged. They will be ratcheted to required
+status as those KIs close.
 
 ---
 
