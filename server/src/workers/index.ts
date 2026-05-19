@@ -33,6 +33,7 @@ import 'dotenv/config';
 import logger from '../utils/logger';
 import { closeAllWorkers, closeAllQueues } from '../utils/queue';
 import { registerExampleWorker } from './example.worker';
+import { registerOutboxWorker } from './outbox.worker';
 
 async function main() {
   logger.info('[workers] starting registered workers...');
@@ -40,7 +41,7 @@ async function main() {
   // Each registered worker contributes a Worker instance to the shared
   // shutdown set in utils/queue.ts. Add new workers below as they land.
   registerExampleWorker();
-  // 0L outbox: registerOutboxWorker(); — added by batch 0L
+  registerOutboxWorker();
 
   logger.info('[workers] all workers registered; entering idle wait loop');
 

@@ -4848,6 +4848,53 @@ model WebhookSubscription {
   @@map("webhook_subscriptions")
 }
 
+/// Transactional outbox — load-bearing integration primitive (batch 0L).
+///
+/// Every business mutation that emits an event writes a PENDING row here
+/// INSIDE its existing prisma.$transaction. A separate BullMQ worker
+/// (server/src/workers/outbox.worker.ts) drains PENDING rows, dispatches
+/// to n8n (or any future handler), and marks DELIVERED / FAILED.
+///
+/// Why the outbox instead of fire-and-forget HTTP from the service layer:
+/// if the business transaction commits but the in-memory HTTP retry loop
+/// dies (process crash, Vercel cold-shutdown, network blip), the event is
+/// lost forever. The outbox makes event delivery atomic with the
+/// underlying state change — durable in Postgres, retried by a worker
+/// that survives process restarts.
+model OutboxEvent {
+  id            String              @id @default(cuid())
+  eventName     String              @map("event_name")
+  entityType    String              @map("entity_type")
+  entityId      String              @map("entity_id")
+  actorId       String              @map("actor_id")
+  payload       Json
+  requestId     String?             @map("request_id")
+  status        OutboxEventStatus   @default(PENDING)
+  attempts      Int                 @default(0)
+  lastAttemptAt DateTime?           @map("last_attempt_at")
+  deliveredAt   DateTime?           @map("delivered_at")
+  errorMessage  String?             @map("error_message") @db.Text
+  availableAt   DateTime            @default(now()) @map("available_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+
+  @@map("outbox_events")
+  @@index([status, availableAt])
+  @@index([eventName])
+  @@index([entityType, entityId])
+}
+
+enum OutboxEventStatus {
+  PENDING
+  IN_FLIGHT
+  DELIVERED
+  FAILED
+  DISCARDED
+}
+
 model WorkflowError {
   id           String    @id @default(cuid())
   workflowName String    @map("workflow_name")
