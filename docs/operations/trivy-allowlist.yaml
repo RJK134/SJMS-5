@@ -1,0 +1,28 @@
+# Trivy allow-list for SJMS-5 container scans
+#
+# Phase 0 batch 0M — supply-chain hardening
+# Closes deep-review P0 #5 + P1 #10–11.
+#
+# This file is the operator's audit trail of intentionally deferred
+# vulnerabilities. The `container-scan` workflow (.github/workflows/
+# container-scan.yml) passes this file to `trivy --trivyignores`,
+# which suppresses listed findings from causing the workflow to fail.
+#
+# Each entry MUST carry:
+#   - CVE / GHSA identifier
+#   - Brief description (1 line)
+#   - Justification (why deferred)
+#   - Review-by date (ISO 8601)
+#   - Owner (the role / individual signing off the deferral)
+#
+# When a review-by date passes, the container-scan workflow will
+# emit a warning in its step summary so an operator notices.
+#
+# Today's posture: ZERO active suppressions. Every HIGH/CRITICAL must
+# be remediated, not allow-listed. This list exists so the convention
+# is in place from the moment the first suppression is genuinely
+# required.
+
+# Format (uncomment when first entry is added):
+#
+# CVE-YYYY-NNNNN  # one-line description; justification; review-by 2026-MM-DD; owner Richard Knapp
