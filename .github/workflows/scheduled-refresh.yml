@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout SJMS-5
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
