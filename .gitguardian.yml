@@ -1,0 +1,37 @@
+# GitGuardian configuration for SJMS-5
+#
+# Phase 0 batch 0K — governance baseline.
+#
+# This file tells GitGuardian which findings are intentional and
+# should NOT cause the `GitGuardian Security Checks` PR job to fail.
+#
+# Each entry MUST carry a justification comment so the audit trail is
+# self-explanatory. Re-evaluate every entry at every phase closeout
+# and remove any that have been remediated since.
+
+version: 2
+
+# Path-level exclusions for the secret scanner.
+paths-ignore:
+  # The Verification cycle documents preserve the development Keycloak
+  # realm seed credentials (e.g. student@fhe.ac.uk / Fhe100@) so a
+  # contributor following the verification protocol can log in to the
+  # dev realm. The realm itself is local-only via docker-compose; the
+  # seed password is rotated at every demo. The same credential is
+  # written into scripts/keycloak-setup.ts and the realm JSON, so the
+  # only canonical way to remove this finding is to randomise the seed
+  # at first-boot — sequenced to Phase 0 batch 0G (MFA enforcement)
+  # which forces an OTP enrolment at first login, making the static
+  # password a non-credential.
+  - Verification/SJMS-2.5-Revised-Verification-Cycle.md
+  - Verification/SJMS-2.5-Revised-Build-Test-Cycle-v2.md
+
+# Specific-incident matches that are recurring. None active today.
+# When the first one is genuinely needed, the schema is:
+#
+# matches-ignore:
+#   - match: "Fhe100@"
+#     name: "Development Keycloak realm seed password"
+#     # justification: …
+#     # owner: Richard Knapp
+#     # review-by: 2026-08-01

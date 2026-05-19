@@ -1,0 +1,50 @@
+name: IaC scan (Checkov)
+
+# Phase 0 batch 0M — supply-chain hardening (closes deep-review P1
+# #10–11). Runs Checkov against Docker, nginx, and docker-compose
+# manifests to catch IaC misconfigurations before merge.
+#
+# The scan is ADVISORY through Phase 0 (continue-on-error: true) so
+# the operator can see the baseline without it blocking the spine-
+# import work. It ratchets to BLOCKING in Phase 12 (pilot readiness),
+# alongside the cosign + DR + DPIA hardening.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  checkov:
+    name: Checkov — Docker + nginx + compose
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          # Scan Dockerfiles, docker-compose, nginx confs, and any
+          # kubernetes manifests that arrive in later phases.
+          framework: dockerfile,docker_compose,kubernetes
+          # Conventional Checkov skip-rules are tracked in
+          # docs/operations/checkov-allowlist.md (created when the
+          # first skip is genuinely needed). Today: zero skips.
+          skip_check: ''
+          quiet: false
+          output_format: cli,sarif
+          output_file_path: console,checkov.sarif
+          soft_fail: true
+
+      - name: Upload SARIF to GitHub code-scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov.sarif
+          category: checkov
