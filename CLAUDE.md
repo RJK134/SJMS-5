@@ -48,7 +48,7 @@ SJMS 2.5 is a **unified enterprise student records system** for UK higher educat
 
 ## Target Metrics
 
-197 Prisma models · 129 pages · 271 API endpoints (57 routers) · 36 roles · 15 n8n workflows
+199 Prisma models · 129 pages · 271 API endpoints (59 routers) · 36 roles · 15 n8n workflows
 Sub-2s page loads · Sub-500ms API (p95) · WCAG 2.1 AA · British English throughout
 
 ## Critical Rules for Claude
