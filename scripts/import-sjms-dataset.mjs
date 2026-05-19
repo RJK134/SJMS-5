@@ -23,6 +23,13 @@
  * top of every run. Schema convergence proper is a Phase 12 concern
  * (KI-S5-202).
  *
+ * Phase D0 follow-up — column synthesisers (see
+ * scripts/sjms-data/lib/column-synthesisers.mjs) let the importer accept
+ * tables whose CSV header is missing a required SJMS-5 column when the
+ * value can be derived from another column, looked up via an auxiliary
+ * CSV, or stubbed to a known default. Synthesisable columns count as
+ * "available" for the shape check and are filled per-row at coerce time.
+ *
  * Usage:
  *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --dry-run
  *   node scripts/import-sjms-dataset.mjs --source ./output/2026-05-17 --persist
@@ -43,6 +50,12 @@ import { TOPOLOGICAL_ORDER, modelsByDomain } from './sjms-data/lib/domain-map.mj
 import { parsePrismaSchema } from './sjms-data/lib/schema.mjs';
 import { readCsvRows, readCsvHeader } from './sjms-data/lib/csv-reader.mjs';
 import { coerceRow } from './sjms-data/lib/type-coerce.mjs';
+import {
+  COLUMN_SYNTHESISERS,
+  synthesisableFields,
+  applySynthesisers,
+  loadSynthContext,
+} from './sjms-data/lib/column-synthesisers.mjs';
 
 const FORBIDDEN_COLUMNS = new Set([
   'body', 'questionText', 'question_text', 'markScheme', 'mark_scheme',
@@ -146,6 +159,11 @@ function toSnakeCase(s) {
  *   skippedNoModel: dataset CSV exists, no matching SJMS-5 model.
  *   skippedShape: SJMS-5 model exists, but a required field is missing from the CSV header.
  *   skippedNoCsv: dataset model exists, but the snapshot has no CSV (rowCount 0 in manifest).
+ *
+ * A required SJMS-5 column counts as "available" if either:
+ *   (i) the CSV header literally contains it, OR
+ *   (ii) the column-synthesisers map registers a synthesiser for it.
+ * Case (ii) is the Phase D0 follow-up shim — see column-synthesisers.mjs.
  */
 export async function classifyTables(dir, manifest, schema) {
   const covered = [];
@@ -186,11 +204,15 @@ export async function classifyTables(dir, manifest, schema) {
         }
       }
 
+      const synthCols = synthesisableFields(datasetModel);
+
       const missingRequired = [];
       for (const field of sjms5Model.fields) {
         if (field.isOptional) continue;
         if (field.defaultExpr !== undefined) continue;
-        if (!headerCols.includes(field.name)) missingRequired.push(field.name);
+        if (headerCols.includes(field.name)) continue;
+        if (synthCols.has(field.name)) continue;
+        missingRequired.push(field.name);
       }
       if (missingRequired.length > 0) {
         skippedShape.push({
@@ -199,7 +221,9 @@ export async function classifyTables(dir, manifest, schema) {
         continue;
       }
 
-      const importableFields = sjms5Model.fields.filter((f) => headerCols.includes(f.name));
+      const importableFields = sjms5Model.fields.filter(
+        (f) => headerCols.includes(f.name) || synthCols.has(f.name),
+      );
       covered.push({
         domain, datasetModel, table, csvName, csvPath, manifestCount, importableFields,
       });
@@ -251,7 +275,7 @@ function sumCounts(list) {
   return list.reduce((acc, e) => acc + (e.manifestCount ?? 0), 0);
 }
 
-export async function upsertTableLive(prisma, entry, batchSize) {
+export async function upsertTableLive(prisma, entry, batchSize, synthCtx = {}) {
   const { table, csvPath, importableFields, manifestCount } = entry;
   const idField = importableFields.find((f) => f.isId);
   if (!idField) {
@@ -278,9 +302,11 @@ export async function upsertTableLive(prisma, entry, batchSize) {
     batch = [];
   };
 
+  const hasSynths = Boolean(COLUMN_SYNTHESISERS[entry.datasetModel]);
   for await (const raw of readCsvRows(csvPath)) {
     line += 1;
-    const row = coerceRow(raw, importableFields, { table, line });
+    const enriched = hasSynths ? applySynthesisers(entry.datasetModel, raw, synthCtx) : raw;
+    const row = coerceRow(enriched, importableFields, { table, line });
     batch.push(row);
     if (batch.length >= batchSize) await flush();
   }
@@ -352,10 +378,13 @@ export async function main() {
   const { PrismaClient } = await import('@prisma/client');
   const prisma = new PrismaClient();
   const importCounts = {};
+  // Pre-load auxiliary lookups (academic-year ids → labels, person names)
+  // that some column synthesisers need. Cheap one-shot pass at startup.
+  const synthCtx = await loadSynthContext(dir);
   try {
     process.stdout.write(`\n=== Upsert (live) ===\n`);
     for (const entry of classification.covered) {
-      importCounts[entry.table] = await upsertTableLive(prisma, entry, args.batch);
+      importCounts[entry.table] = await upsertTableLive(prisma, entry, args.batch, synthCtx);
     }
     await emitAuditEvent(prisma, manifest, importCounts);
     process.stdout.write(`\nImport complete. ${classification.covered.length} tables, ${Object.values(importCounts).reduce((a, b) => a + b, 0).toLocaleString()} rows upserted.\n`);
