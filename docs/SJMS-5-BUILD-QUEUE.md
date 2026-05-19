@@ -20,7 +20,7 @@
 
 | Phase | Title | HERM | Branch | Status | STOP-gate |
 |---|---|---|---|---|---|
-| 0 | Spine import + convergence baseline (expanded) | — | `phase-0/spine-import` | **APPROVED — READY AFTER AMENDMENTS PR** | ✅ Option B + Option 1 amendments signed off 2026-05-16 |
+| 0 | Spine import + convergence baseline (expanded) | — | merged to `main` | **✅ COMPLETE 2026-05-19** — all 14 batches on `main`; see [`SJMS-5-KNOWN-ISSUES.md`](SJMS-5-KNOWN-ISSUES.md) "Phase 0 — COMPLETE" section for the merge ledger | ✅ Option B + Option 1 amendments signed off 2026-05-16 |
 | 1 | Finance closeout (absorb 2.5 18D–F + locking + audit FK) | L3 | `phase-1/finance-closeout` | not started | none |
 | 2 | Multi-tenancy substrate | L8, L10 | `phase-2/multi-tenancy-substrate` | not started | **design doc** (acknowledged) |
 | 3 | HESA / UKVI / regulatory utilities | L4 | `phase-3/hesa-ukvi-regulatory` | not started | none |
