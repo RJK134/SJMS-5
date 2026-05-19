@@ -1884,6 +1884,9 @@ model Application {
   agentApplications AgentApplication[]
   ucasChoices    UCASChoice[]
 
+  /// Optimistic-locking version (batch 1H).
+  version Int @default(1)
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   createdBy String?   @map("created_by")
@@ -2123,6 +2126,9 @@ model Enrolment {
   interruptionRecords InterruptionRecord[]
   withdrawalRecords   WithdrawalRecord[]
 
+  /// Optimistic-locking version (batch 1H).
+  version Int @default(1)
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   createdBy String?   @map("created_by")
@@ -2349,6 +2355,10 @@ model AssessmentAttempt {
   feedback              String?            @db.Text
   hasExtenuatingCircumstances Boolean      @default(false) @map("has_extenuating_circumstances")
 
+  /// Optimistic-locking version (batch 1H). High contention on the
+  /// SUBMITTED -> MARKED -> MODERATED -> CONFIRMED state machine.
+  version Int @default(1)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
@@ -2416,6 +2426,10 @@ model ModuleResult {
   confirmedBy          String?            @map("confirmed_by")
   boardId              String?            @map("board_id")
 
+  /// Optimistic-locking version (batch 1H). PROVISIONAL -> CONFIRMED
+  /// ratification race.
+  version Int @default(1)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
@@ -2464,6 +2478,10 @@ model ExamBoardDecision {
   conditions  String?          @db.Text
   notes       String?          @db.Text
   decidedBy   String?          @map("decided_by")
+
+  /// Optimistic-locking version (batch 1H). Multiple board members can
+  /// edit conditions / notes concurrently before the chair signs off.
+  version Int @default(1)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2947,6 +2965,10 @@ model Invoice {
   payments    Payment[]
   creditNotes CreditNote[]
 
+  /// Optimistic-locking version (batch 1H). High contention on the
+  /// paidAmount + status fields during payment allocation.
+  version Int @default(1)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
@@ -2972,6 +2994,9 @@ model Payment {
   /// persist run.  Acts as an idempotency marker so a payment cannot be
   /// double-applied to the ledger without an explicit force flag.
   allocatedAt      DateTime?      @map("allocated_at")
+  /// Optimistic-locking version (batch 1H). Multiple allocators can race
+  /// on the same Payment during reconciliation.
+  version Int @default(1)
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
   updatedBy String?  @map("updated_by")
