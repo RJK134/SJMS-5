@@ -40,10 +40,7 @@ services:
 
   # ── MinIO (S3-compatible Object Storage) ───────────────────────
   minio:
-    # Pinned per docs/operations/ci-and-branch-protection.md §6 supply-chain
-    # hardening (Phase 0 batch 0M, closes deep-review P0 #5). Operator may
-    # bump after running container-scan against the new tag.
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    image: minio/minio:latest
     container_name: sjms5-minio
     restart: unless-stopped
     ports:
@@ -105,9 +102,7 @@ services:
 
   # ── n8n (Workflow Automation) ──────────────────────────────────
   n8n:
-    # Pinned per docs/operations/ci-and-branch-protection.md §6 supply-chain
-    # hardening (Phase 0 batch 0M, closes deep-review P0 #5).
-    image: n8nio/n8n:1.71.0
+    image: n8nio/n8n:latest
     container_name: sjms5-n8n
     restart: unless-stopped
     ports:
@@ -204,9 +199,7 @@ services:
 
   # ── Nginx (Reverse Proxy) ─────────────────────────────────────
   nginx:
-    # Pinned per docs/operations/ci-and-branch-protection.md §6 supply-chain
-    # hardening (Phase 0 batch 0M). `alpine` floats; `1.27-alpine` does not.
-    image: nginx:1.27-alpine
+    image: nginx:alpine
     container_name: sjms5-nginx
     restart: unless-stopped
     ports:

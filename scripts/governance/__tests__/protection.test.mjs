@@ -36,49 +36,65 @@ const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
 expect(
   'targets the default branch (main)',
   policy.branch === 'main',
-  'GOVERNANCE.md �1 requires the policy apply to main; if the default branch changes the policy must too.',
+  'GOVERNANCE.md ï¿½1 requires the policy apply to main; if the default branch changes the policy must too.',
 );
 
 // --- Clause 2: required reviewers ---
 expect(
-  'requires at least one approving review',
+  'requires at least two approving reviews (Phase 0 batch 0K â bus-factor)',
   typeof policy.required_pull_request_reviews?.required_approving_review_count === 'number' &&
-    policy.required_pull_request_reviews.required_approving_review_count >= 1,
-  'GOVERNANCE.md �2 requires at least one approving CODEOWNERS review.',
+    policy.required_pull_request_reviews.required_approving_review_count >= 2,
+  'GOVERNANCE.md Â§2 + docs/operations/ci-and-branch-protection.md Â§2 require 2 approving CODEOWNERS reviews from Phase 0 close (deep-review P0 #6 bus-factor).',
 );
 expect(
   'dismisses stale reviews on push',
   policy.required_pull_request_reviews?.dismiss_stale_reviews === true,
-  'GOVERNANCE.md �2 forbids approvals from surviving a force-push.',
+  'GOVERNANCE.md ï¿½2 forbids approvals from surviving a force-push.',
 );
 expect(
   'requires CODEOWNERS review',
   policy.required_pull_request_reviews?.require_code_owner_reviews === true,
-  'GOVERNANCE.md �2 ties approval to CODEOWNERS.',
+  'GOVERNANCE.md ï¿½2 ties approval to CODEOWNERS.',
 );
 expect(
   'requires last-push approval (no self-approve after rewrite)',
   policy.required_pull_request_reviews?.require_last_push_approval === true,
-  'GOVERNANCE.md �2 forbids re-approval bypass after a rewrite.',
+  'GOVERNANCE.md ï¿½2 forbids re-approval bypass after a rewrite.',
 );
 
 // --- Clause 3: required status checks ---
 expect(
   'has required_status_checks block',
   policy.required_status_checks && typeof policy.required_status_checks === 'object',
-  'GOVERNANCE.md �3 requires the policy enumerate the blocking checks.',
+  'GOVERNANCE.md ï¿½3 requires the policy enumerate the blocking checks.',
 );
 expect(
   'required checks are strict (branch must be up-to-date)',
   policy.required_status_checks?.strict === true,
-  'GOVERNANCE.md �3 enforces strict mode.',
+  'GOVERNANCE.md ï¿½3 enforces strict mode.',
 );
 const requiredContexts = policy.required_status_checks?.contexts ?? [];
-for (const ctx of ['Quality gate', 'governance-drift', 'GitGuardian Security Checks']) {
+// Ratcheted in Phase 0 batch 0K. The pre-0K policy listed the
+// SJMS-2.5 aggregate "Quality gate" check; SJMS-5 splits that into
+// the per-workspace checks below and adds the supply-chain hardening
+// checks landed in batch 0M (Trivy Ã 2, SBOM) plus npm audit ratched
+// from advisory and CodeQL by its workflow-job name.
+for (const ctx of [
+  'Docs truth check',
+  'Server quality gate',
+  'Client quality gate',
+  'governance-drift',
+  'GitGuardian Security Checks',
+  'Analyze javascript-typescript',
+  'Trivy â API image',
+  'Trivy â client image',
+  'Generate CycloneDX SBOM (root + server + client)',
+  'npm audit',
+]) {
   expect(
     `requires status check: ${ctx}`,
     requiredContexts.includes(ctx),
-    `GOVERNANCE.md �3 lists ${ctx} as required.`,
+    `docs/operations/ci-and-branch-protection.md Â§2 lists ${ctx} as required.`,
   );
 }
 
@@ -86,32 +102,32 @@ for (const ctx of ['Quality gate', 'governance-drift', 'GitGuardian Security Che
 expect(
   'enforces admins (no admin bypass)',
   policy.enforce_admins === true,
-  'GOVERNANCE.md �4 + �6: admin bypass is replaced by the break-glass procedure.',
+  'GOVERNANCE.md ï¿½4 + ï¿½6: admin bypass is replaced by the break-glass procedure.',
 );
 expect(
   'requires signed commits',
   policy.required_signatures === true,
-  'GOVERNANCE.md �5 requires cryptographic signing.',
+  'GOVERNANCE.md ï¿½5 requires cryptographic signing.',
 );
 expect(
   'requires linear history',
   policy.required_linear_history === true,
-  'GOVERNANCE.md �4: only squash-merge is allowed.',
+  'GOVERNANCE.md ï¿½4: only squash-merge is allowed.',
 );
 expect(
   'requires conversation resolution before merge',
   policy.required_conversation_resolution === true,
-  'GOVERNANCE.md �4: unresolved review threads block merge.',
+  'GOVERNANCE.md ï¿½4: unresolved review threads block merge.',
 );
 expect(
   'forbids force pushes',
   policy.allow_force_pushes === false,
-  'GOVERNANCE.md �4: force-push is disallowed on main.',
+  'GOVERNANCE.md ï¿½4: force-push is disallowed on main.',
 );
 expect(
   'forbids deletions',
   policy.allow_deletions === false,
-  'GOVERNANCE.md �4: main cannot be deleted.',
+  'GOVERNANCE.md ï¿½4: main cannot be deleted.',
 );
 
 // --- Result ---
