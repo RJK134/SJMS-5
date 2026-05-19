@@ -4,6 +4,7 @@ import * as repo from '../../repositories/paymentInstalment.repository';
 import * as planRepo from '../../repositories/paymentPlan.repository';
 import * as paymentRepo from '../../repositories/payment.repository';
 import * as chargeLineRepo from '../../repositories/chargeLine.repository';
+import * as financeRepo from '../../repositories/finance.repository';
 import * as paymentService from '../payments/payments.service';
 import { logAudit } from '../../utils/audit';
 import { emitEvent } from '../../utils/webhooks';
@@ -300,4 +301,205 @@ export async function recordPayment(
     instalmentMarkedPaid: updatedInstalment.status === 'COMPLETED',
     planMarkedCompleted,
   };
+}
+
+// ── Process-overdue cron (Phase 1A) ──────────────────────────────────────────
+
+/**
+ * Auto-generate ChargeLines for PaymentInstalments whose `dueDate` has
+ * passed and whose `status` is still `PENDING`. Run on a daily BullMQ
+ * cron by `server/src/workers/payment-instalment-cron.worker.ts`.
+ *
+ * Each issued ChargeLine carries an embedded `[instalment:${id}]`
+ * marker in its `description` so re-runs are idempotent —
+ * `chargeLineRepo.findByInstalmentMarker` is checked before each create
+ * and existing rows are reported as `skipped`. Without a dedicated
+ * `PaymentInstalment.chargeLineId` FK (sequenced to a later phase per
+ * the 18D out-of-scope note), the marker pattern is the canonical
+ * idempotency tag.
+ *
+ * The cron does NOT mutate the PaymentInstalment itself — it stays
+ * `PENDING` until the operator records a payment via the existing
+ * `recordPayment` bridge, at which point the 18C allocator covers the
+ * ChargeLine and flips the instalment to `COMPLETED`. The cron's
+ * single job is "make the charge visible to the allocator".
+ *
+ * Audit subject is the StudentAccount (the account picks up the new
+ * balance impact). A per-row `charge_line.created_for_instalment` event
+ * is emitted via the outbox so downstream consumers (n8n notification
+ * workflows, ledger anomaly detector, etc.) can react per instalment.
+ * A summary `payment_instalment.cron_processed` event fires once at
+ * the end with the run-level outcome.
+ */
+export interface ProcessOverdueOptions {
+  asOf?: Date;
+  trigger?: 'cron' | 'manual';
+}
+
+export interface ProcessOverdueRowOutcome {
+  instalmentId: string;
+  paymentPlanId: string;
+  studentAccountId: string;
+  status: 'charged' | 'skipped' | 'failed';
+  chargeLineId?: string;
+  reason?: string;
+}
+
+export interface ProcessOverdueOutcome {
+  asOf: string;
+  trigger: 'cron' | 'manual';
+  total: number;
+  charged: number;
+  skipped: number;
+  failed: number;
+  results: ProcessOverdueRowOutcome[];
+}
+
+const CRON_USER_ID = 'system:payment-instalment-cron';
+
+export async function processOverdueInstalments(
+  options: ProcessOverdueOptions = {},
+  userId: string = CRON_USER_ID,
+  req?: Request,
+): Promise<ProcessOverdueOutcome> {
+  const asOf = options.asOf ?? new Date();
+  const trigger = options.trigger ?? 'manual';
+
+  const overdue = await repo.findOverdue(asOf);
+  const results: ProcessOverdueRowOutcome[] = [];
+  let charged = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const instalment of overdue) {
+    const plan = instalment.paymentPlan;
+    if (!plan) {
+      results.push({
+        instalmentId: instalment.id,
+        paymentPlanId: instalment.paymentPlanId,
+        studentAccountId: 'unknown',
+        status: 'failed',
+        reason: 'parent PaymentPlan not loaded',
+      });
+      failed++;
+      continue;
+    }
+
+    try {
+      // Idempotency check: did a previous cron run already issue a charge?
+      const existing = await chargeLineRepo.findByInstalmentMarker(
+        plan.studentAccountId,
+        instalment.id,
+      );
+      if (existing) {
+        results.push({
+          instalmentId: instalment.id,
+          paymentPlanId: plan.id,
+          studentAccountId: plan.studentAccountId,
+          status: 'skipped',
+          chargeLineId: existing.id,
+          reason: `charge-line-already-issued (status=${existing.status})`,
+        });
+        skipped++;
+        continue;
+      }
+
+      // Issue the charge. Description carries:
+      //   - human-readable summary for operator UI / statement rendering
+      //   - the [instalment:${id}] marker for the idempotency check above
+      const dueDateIso = instalment.dueDate.toISOString().slice(0, 10);
+      const description =
+        `Instalment ${instalment.instalmentNum} of ${plan.numberOfInstalments} ` +
+        `due ${dueDateIso} (plan ${plan.id}) [instalment:${instalment.id}]`;
+
+      const chargeData: Prisma.ChargeLineUncheckedCreateInput = {
+        studentAccountId: plan.studentAccountId,
+        chargeType: 'OTHER',
+        description,
+        amount: instalment.amount,
+        currency: 'GBP',
+        status: 'PENDING',
+        dueDate: instalment.dueDate,
+        createdBy: userId,
+      };
+      const charge = await financeRepo.createCharge(chargeData);
+
+      results.push({
+        instalmentId: instalment.id,
+        paymentPlanId: plan.id,
+        studentAccountId: plan.studentAccountId,
+        status: 'charged',
+        chargeLineId: charge.id,
+      });
+      charged++;
+
+      // Per-row event so n8n workflows can wire notifications etc.
+      emitEvent({
+        event: 'payment_instalment.due',
+        entityType: 'PaymentInstalment',
+        entityId: instalment.id,
+        actorId: userId,
+        data: {
+          paymentPlanId: plan.id,
+          studentAccountId: plan.studentAccountId,
+          chargeLineId: charge.id,
+          amount: Number(instalment.amount),
+          dueDate: dueDateIso,
+          instalmentNum: instalment.instalmentNum,
+        },
+      });
+    } catch (err) {
+      results.push({
+        instalmentId: instalment.id,
+        paymentPlanId: plan.id,
+        studentAccountId: plan.studentAccountId,
+        status: 'failed',
+        reason: (err as Error).message,
+      });
+      failed++;
+    }
+  }
+
+  // Run-level audit + summary event. Subject is the synthetic
+  // "PaymentInstalmentCron" entity so the run is greppable in the audit
+  // log without colliding with per-row PaymentInstalment audits.
+  const outcome: ProcessOverdueOutcome = {
+    asOf: asOf.toISOString(),
+    trigger,
+    total: overdue.length,
+    charged,
+    skipped,
+    failed,
+    results,
+  };
+
+  // Audit action `CREATE` reflects "a new cron run was created" — the
+  // AuditAction enum has no dedicated EXECUTE / RUN value. The subject
+  // type `PaymentInstalmentCron` distinguishes this from per-row
+  // PaymentInstalment audits so grep'ing the audit log can separate
+  // the two surfaces cleanly.
+  await logAudit(
+    'PaymentInstalmentCron',
+    asOf.toISOString(),
+    'CREATE',
+    userId,
+    null,
+    outcome,
+    req,
+  );
+  emitEvent({
+    event: 'payment_instalment.cron_processed',
+    entityType: 'PaymentInstalmentCron',
+    entityId: asOf.toISOString(),
+    actorId: userId,
+    data: {
+      trigger,
+      total: outcome.total,
+      charged: outcome.charged,
+      skipped: outcome.skipped,
+      failed: outcome.failed,
+    },
+  });
+
+  return outcome;
 }

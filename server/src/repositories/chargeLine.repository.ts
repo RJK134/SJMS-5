@@ -102,6 +102,34 @@ export async function getById(id: string) {
 }
 
 /**
+ * Find any non-deleted ChargeLine on this account whose `description`
+ * carries the `[instalment:${instalmentId}]` marker — the canonical
+ * idempotency tag the Phase 1A payment-instalment cron embeds when it
+ * issues a charge for a falling-due instalment. Returns the matching
+ * row's id (and key projection fields) so the cron can decide to skip
+ * rather than create a duplicate.
+ *
+ * The marker is encoded inside the description (rather than via a
+ * dedicated FK column) to keep the Phase 1A diff schema-stable. A
+ * proper `PaymentInstalment.chargeLineId` FK migration is sequenced to
+ * a later phase per the 18D out-of-scope note.
+ */
+export async function findByInstalmentMarker(
+  studentAccountId: string,
+  instalmentId: string,
+): Promise<{ id: string; status: string } | null> {
+  const row = await prisma.chargeLine.findFirst({
+    where: {
+      studentAccountId,
+      deletedAt: null,
+      description: { contains: `[instalment:${instalmentId}]` },
+    },
+    select: { id: true, status: true },
+  });
+  return row;
+}
+
+/**
  * Mark a set of ChargeLines as PAID in bulk.
  *
  * Used by the payment-allocation pipeline after a payment has been

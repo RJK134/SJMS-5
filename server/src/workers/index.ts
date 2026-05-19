@@ -34,6 +34,7 @@ import logger from '../utils/logger';
 import { closeAllWorkers, closeAllQueues } from '../utils/queue';
 import { registerExampleWorker } from './example.worker';
 import { registerOutboxWorker } from './outbox.worker';
+import { registerPaymentInstalmentCronWorker } from './payment-instalment-cron.worker';
 
 async function main() {
   logger.info('[workers] starting registered workers...');
@@ -42,6 +43,7 @@ async function main() {
   // shutdown set in utils/queue.ts. Add new workers below as they land.
   registerExampleWorker();
   registerOutboxWorker();
+  registerPaymentInstalmentCronWorker();
 
   logger.info('[workers] all workers registered; entering idle wait loop');
 
