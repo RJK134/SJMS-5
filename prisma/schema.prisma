@@ -1449,8 +1449,12 @@ model User {
   personId   String? @unique @map("person_id")
   person     Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
 
-  notifications          Notification[]
+  notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  /// AuditLog rows where this user was the actor. The FK is `onDelete:
+  /// Restrict` (batch 1I) so the DB blocks any hard-delete that would
+  /// orphan the audit trail; soft-deactivate via `active = false`.
+  auditLogs               AuditLog[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -4763,7 +4767,15 @@ model AuditLog {
   entityType   String      @map("entity_type")
   entityId     String      @map("entity_id")
   action       AuditAction
+  /// Foreign key to User.id (batch 1I — deep-review P1 #18). Nullable because
+  /// some legacy events were created by automated jobs that never had a User
+  /// row (system imports, bootstrap). For human-driven mutations, this MUST
+  /// be set and references an existing User. onDelete: Restrict — the DB
+  /// refuses to hard-delete a User row that has AuditLog references, so the
+  /// compliance audit trail can never be broken by accidental purge. Operators
+  /// who need to deactivate a user set `User.active = false` instead.
   userId       String?     @map("user_id")
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   userRole     String?     @map("user_role")
   ipAddress    String?     @map("ip_address")
   userAgent    String?     @map("user_agent")
