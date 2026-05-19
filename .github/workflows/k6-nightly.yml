@@ -1,0 +1,131 @@
+name: k6 nightly load test (advisory)
+
+# Phase 0 batch 0E — k6 scenarios import from sjms-v4-integrated.
+#
+# Runs the cheap `smoke-test.js` scenario every night at 03:00 UTC
+# against the staging deploy of SJMS-5. Acceptance per the build queue
+# is just "emits a result on a non-prod target". Heavier scenarios
+# (admissions-peak.ts, enrolment-period.ts, hesa-return.ts, api-stress.ts,
+# student-portal.ts, staff-portal.ts) live in `k6/scenarios/` and are
+# operator-triggered manually via `workflow_dispatch` when a load
+# rehearsal is needed.
+#
+# Soft-skips when `K6_BASE_URL` is not configured as a repo secret —
+# emits a clear warning so the operator notices, but does not fail
+# the job. The job becomes a hard gate in Phase 12 (pilot readiness)
+# alongside the 2× peak rehearsal requirement.
+#
+# Phase 0 batch 0E acceptance: this workflow exists, emits a result
+# on a non-prod target if K6_BASE_URL is set, and skips cleanly if not.
+
+on:
+  schedule:
+    # 03:00 UTC nightly — low traffic on a UK HE staging environment
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Scenario filename under k6/scenarios/ (without path)'
+        required: false
+        default: 'smoke-test.js'
+        type: string
+      base_url:
+        description: 'Override K6_BASE_URL for this run'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  k6:
+    name: k6 smoke + baseline (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve target URL
+        id: target
+        env:
+          INPUT_BASE_URL: ${{ inputs.base_url }}
+          SECRET_BASE_URL: ${{ secrets.K6_BASE_URL }}
+        run: |
+          # Manual-dispatch input wins over the repo secret.
+          if [ -n "$INPUT_BASE_URL" ]; then
+            echo "base_url=$INPUT_BASE_URL" >> "$GITHUB_OUTPUT"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SECRET_BASE_URL" ]; then
+            echo "base_url=$SECRET_BASE_URL" >> "$GITHUB_OUTPUT"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::K6_BASE_URL is not configured. Set the K6_BASE_URL"
+            echo "::warning::repository secret to the staging API URL. Soft-skipping"
+            echo "::warning::the run; the job will exit success but emit no result."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.target.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install esbuild
+        if: steps.target.outputs.configured == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Build k6 scenarios (esbuild bundle)
+        if: steps.target.outputs.configured == 'true'
+        run: node k6/build.cjs
+
+      - name: Install k6
+        if: steps.target.outputs.configured == 'true'
+        run: |
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run scenario
+        if: steps.target.outputs.configured == 'true'
+        env:
+          BASE_URL: ${{ steps.target.outputs.base_url }}
+          SCENARIO: ${{ inputs.scenario || 'smoke-test.js' }}
+        run: |
+          # smoke-test.js is the cheap scenario suitable for nightly CI.
+          # If the user dispatches a heavier scenario via workflow_dispatch,
+          # they should also set thresholds in the scenario file appropriately
+          # for an advisory run (this job continues on error).
+          mkdir -p evidence/k6
+          k6 run \
+            --summary-export "evidence/k6/${SCENARIO%.js}.summary.json" \
+            "k6/scenarios/${SCENARIO}" \
+            || echo "::warning::k6 run exited non-zero — see summary artefact."
+
+      - name: Upload k6 summary artefact
+        if: always() && steps.target.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary-${{ github.run_id }}
+          path: evidence/k6/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summarise in step summary
+        if: always()
+        run: |
+          {
+            echo "### k6 nightly run"
+            echo ""
+            if [ "${{ steps.target.outputs.configured }}" = "true" ]; then
+              echo "- Target: \`${{ steps.target.outputs.base_url }}\`"
+              echo "- Scenario: \`${{ inputs.scenario || 'smoke-test.js' }}\`"
+              echo "- Summary uploaded as artefact \`k6-summary-${{ github.run_id }}\`"
+            else
+              echo "- **Soft-skipped** — \`K6_BASE_URL\` repository secret not configured."
+              echo "- Set the secret in Settings → Secrets and variables → Actions to enable nightly runs."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
