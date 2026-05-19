@@ -138,3 +138,47 @@ if (!HAS_REDIS) {
 
 export const redis = exported;
 export default exported;
+
+// ── BullMQ-compatible connection factory ───────────────────────────────────
+//
+// BullMQ requires `maxRetriesPerRequest: null` on its Redis connection
+// because internal commands BLOCK waiting for results — the
+// retry-then-fail behaviour rate-limit.ts depends on would orphan
+// queued jobs. We therefore expose a separate connection factory used
+// by `server/src/utils/queues.ts` (API enqueue side) and
+// `server/src/workers/bullmq-bootstrap.ts` (worker process). Returns
+// `null` when REDIS_URL is unset — callers degrade gracefully.
+
+let queueConnection: Redis | null | undefined;
+
+/**
+ * Lazy-construct an ioredis client tuned for BullMQ's requirements.
+ * Singleton per process. Returns `null` when REDIS_URL is unset so the
+ * API can soft-skip enqueue calls without crashing on a non-Redis
+ * deployment (matching the no-op shim contract above).
+ */
+export function getQueueConnection(): Redis | null {
+  if (queueConnection !== undefined) {
+    return queueConnection;
+  }
+  if (!HAS_REDIS) {
+    queueConnection = null;
+    return null;
+  }
+  queueConnection = new Redis(REDIS_URL_RAW!, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    lazyConnect: true,
+  });
+  queueConnection.on('connect', () => logger.info('[redis:bullmq] connected'));
+  let errorLogged = false;
+  queueConnection.on('error', (err: Error) => {
+    if (!errorLogged) {
+      logger.warn(
+        `[redis:bullmq] connection error (${err.message}). Further [redis:bullmq] errors are suppressed; jobs queued in-process will retry until Redis recovers.`,
+      );
+      errorLogged = true;
+    }
+  });
+  return queueConnection;
+}
