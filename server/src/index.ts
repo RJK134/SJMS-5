@@ -16,6 +16,12 @@ import { openApiSpec } from "./utils/openapi";
 import logger from "./utils/logger";
 import { register, httpRequestDuration, httpRequestTotal } from "./utils/metrics";
 import prisma from "./utils/prisma";
+import {
+  SJMS_DATASET_CRON_PATTERN,
+  SJMS_DATASET_CRON_TIMEZONE,
+  SJMS_DATASET_ENABLE_ENV,
+  getLastDatasetImportRun,
+} from "./workers/sjms-dataset-import.worker";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -177,12 +183,30 @@ app.get("/api/health", async (_req, res) => {
     healthy = false;
   }
 
+  // Phase D8 — surface the SJMS dataset import scheduler's last-run state
+  // alongside the DB check. `lastRun` is null until the worker has handled
+  // at least one job (cron or manual); it only populates inside the
+  // long-running worker process (REDIS_URL + SJMS_ENABLE_DATASET_SCHEDULER
+  // set), so the API process here will normally report `null` and rely on
+  // the worker host's health surface for live values.
+  const datasetSchedulerEnabled =
+    process.env[SJMS_DATASET_ENABLE_ENV]?.trim().toLowerCase() === "true";
+  const datasetScheduler = {
+    enabled: datasetSchedulerEnabled,
+    cronPattern: SJMS_DATASET_CRON_PATTERN,
+    timezone: SJMS_DATASET_CRON_TIMEZONE,
+    lastRun: getLastDatasetImportRun(),
+  };
+
   res.status(healthy ? 200 : 503).json({
     status: healthy ? "ok" : "degraded",
     version: "2.5.0",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
     checks,
+    schedulers: {
+      sjmsDatasetImport: datasetScheduler,
+    },
   });
 });
 
