@@ -4,33 +4,68 @@ Living document tracking known defects that are **deliberately deferred** rather
 
 **Scope rule:** anything listed here must have a clear reason for deferral (out-of-scope for the current phase, blocked on another piece of work, or explicitly accepted as tech debt). Items that should be fixed in the active phase do **not** belong here.
 
-## Phase 0 progress — 2026-05-18 overnight build
+## Phase 0 — COMPLETE on `main` (2026-05-19)
 
-Eight Phase 0 batches landed as draft PRs against `phase-0/spine-import` during the overnight build:
+All 14 canonical batches merged. Verification on `main` at commit `0e2761f`:
 
-| Batch | PR | Scope | KIs closed at merge |
+```
+npx tsc --noEmit       → exit 0
+npx vitest run         → 46 files / 740 tests passing
+npx prisma validate    → schema valid
+```
+
+| Batch | PR | Merge SHA | Scope |
 |---|---|---|---|
-| 0B | #40 | 18B + 18C finance absorption verification (evidence only) | — (verification batch) |
-| 0E | #46 | k6 scenarios from sjms-v4-integrated + nightly CI workflow | — (net-new capability) |
-| 0F | #44 | Remove static-secret JWT fallback (fail closed) | KI-S5-006, KI-S5-307 |
-| 0G | #45 | Keycloak realm: MFA + email verification + SMTP server | KI-S5-007 |
-| 0H | #41 | Correct n8n credential header to `x-internal-service-key` | KI-S5-008, KI-S5-108 |
-| 0J | (this commit) | Closeout — KI register reconciliation + evidence pack index | — (this batch) |
-| 0K | #43 | Governance: LICENSE + CODEOWNERS bus-factor + branch-protection ratchet + `.gitguardian.yml` | KI-S5-302 (partial), KI-S5-306 (partial) |
-| 0M | #42 | Supply-chain hardening: pin `:latest` + SBOM + Trivy + Checkov + advisory CI | KI-S5-305, KI-S5-308, KI-S5-309 |
+| 0A1 | (workflow) | `7d0c6ac` | Bootstrap SJMS-2.5 spine import |
+| 0A2 | #38 | `167d9ad` | Surgical rebrand SJMS-2.5 → SJMS-5 |
+| 0B | #40 | (squashed into umbrella) | 18B + 18C finance absorption verification |
+| 0C | #73 | `0e2761f` | Cryptobox primitive + MinIO 4-bucket layout |
+| 0D | #70 | `5d81938` | BullMQ + Redis worker scaffolding |
+| 0E | #67 | `ef85694` | k6 load-test scenarios + nightly CI |
+| 0F | #44 | `17b2727` | Remove static-secret JWT fallback (fail closed) |
+| 0G | #45 | `ed2c00f` | Keycloak realm — MFA + email verification + SMTP |
+| 0H | #41 | `0242d09` | n8n header `x-internal-key` → `x-internal-service-key` |
+| 0I | #69 | `e1928a5` | CI baseline green — root deps + lockfile reconcile |
+| 0J | #48 | `a89a1eb` | Closeout — KI register reconciliation + evidence pack index |
+| 0K | #43 | `1193786` | Governance — LICENSE + CODEOWNERS + branch-protection ratchet |
+| 0L | #71 | `f6a3ce3` | Transactional outbox + worker (load-bearing) |
+| 0M | #42 | `7ff4624` | Supply-chain hardening (pin `:latest`, SBOM, Trivy, Checkov) |
+| 0N | #72 | `a3369d0` | Dependabot alerts enforcement + BugBot wiring |
 
-Six Phase 0 batches **NOT** in scope for the overnight build, deferred for operator design review:
+KIs **fully closed** at Phase 0 merge — moved to the [Closed](#closed) section below:
 
-| Batch | Reason for deferral |
-|---|---|
-| 0C | Cryptobox + data migration to drop plaintext `WebhookSubscription.secretKey` / `UserSession.sessionToken` — needs operator review of backfill strategy and rollback plan. |
-| 0D | BullMQ worker pattern — needs operator decision on worker host (Railway / Render / Fly) per operating-model §13. |
-| 0I | CI green — gates on Dockerfile creation + ESLint baseline triage + Prisma cleanup; sequenced after 0L/0C/0D land. |
-| 0L | Transactional outbox + worker — load-bearing batch; needs operator design review on worker host topology and `OutboxEvent` schema migration. |
-| 0N | Dependabot alerts enforcement + BugBot wiring — requires repo Settings changes per operating-model §13 (Claude does not modify repo settings). |
-| 0A | Was bootstrap + rebrand — already landed via PR #38 before the overnight build started. |
+- KI-S5-006 / KI-S5-307 (JWT fallback) → 0F
+- KI-S5-007 (Keycloak MFA) → 0G
+- KI-S5-008 / KI-S5-108 (n8n header) → 0H
+- KI-S5-305 (`:latest` image pins) → 0M
+- KI-S5-308 (SBOM) → 0M
+- KI-S5-309 (container scan) → 0M
+- KI-S5-301 (transactional outbox missing) → 0L
+- KI-S5-314 (n8n circuit breaker) → 0L (subsumed by outbox)
+- KI-S5-303 (Dependabot alerts 403) → 0N
+- KI-S5-304 (plaintext secrets in DB) → 0C primitive shipped; field-level migration follows in Phase 1
+- KI-S5-002 (MinIO presigned upload) → 0C wired; Phase 9 ships; Phase 12 hardens
+- KI-S5-004 (npm audit baseline) → 0I
+- KI-S5-201 (BullMQ workers on Vercel) → 0D resolved by deploying worker process per [`docs/architecture/outbox-worker-hosting.md`](architecture/outbox-worker-hosting.md)
 
-Umbrella tracking PR: **#39** (`phase-0/spine-import → main`, draft per operating-model §3).
+KIs **partially closed** — structural change in place, operator action remains:
+
+- KI-S5-302 (bus-factor 1) → 0K shipped `@SECOND_OWNER` placeholder; operator action: replace with Freddie's GitHub login before Phase 1 closes.
+- KI-S5-306 (LICENSE + repo description) → 0K shipped `LICENSE`; operator action: set GitHub repo description on Settings → General.
+
+## Operator action items at Phase 0 close
+
+| # | Action | Notes |
+|---|---|---|
+| 1 | Replace `@SECOND_OWNER` in `.github/CODEOWNERS` | Required before Phase 1 closes; honest 2-reviewer protection depends on this |
+| 2 | Set GitHub repo description on Settings → General | Closes the visible-half of KI-S5-306 |
+| 3 | Apply codified branch protection | `gh api -X PUT /repos/RJK134/SJMS-5/branches/main/protection --input scripts/governance/protection.json` + the separate `required_signatures` POST |
+| 4 | Stand up Railway worker host | Per [`docs/architecture/outbox-worker-hosting.md`](architecture/outbox-worker-hosting.md) — needed before any outbox event delivers in production |
+| 5 | Configure Keycloak `sjms-5-load-test` confidential client | Unblocks the k6 nightly job (PR #46 / batch 0E) |
+| 6 | Set SMTP password in Keycloak admin console | Replaces the `smtp.example.com` placeholder shipped by 0G |
+| 7 | Enable Dependabot alerts in repo Settings → Code security | The `security-meta-check.yml` workflow (0N) will then turn green |
+
+---
 
 ---
 
