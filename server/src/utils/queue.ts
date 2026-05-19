@@ -221,6 +221,10 @@ export async function closeAllQueues(): Promise<void> {
 export const QUEUE_NAMES = {
   /** Outbox event delivery — see batch 0L. */
   OUTBOX_EVENTS: 'outbox-events',
+  /** Weekly SJMS dataset re-import (Phase D8). Gated behind
+   *  `SJMS_ENABLE_DATASET_SCHEDULER=true` — see
+   *  `workers/sjms-dataset-import.worker.ts`. */
+  SJMS_DATASET_IMPORT: 'sjms-dataset-import',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
