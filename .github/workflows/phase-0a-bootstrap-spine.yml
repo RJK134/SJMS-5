@@ -72,7 +72,7 @@ jobs:
           exit 1
 
       - name: Checkout SJMS-5 main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: sjms-5
           ref: main

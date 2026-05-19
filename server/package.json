@@ -14,6 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "worker": "tsx src/workers/index.ts",
+    "worker:dev": "tsx watch src/workers/index.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

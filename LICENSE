@@ -1,0 +1,56 @@
+SJMS-5 — Student Journey Management System (Version 5)
+Copyright (c) 2026 Future Horizons Education Limited. All rights reserved.
+
+PROPRIETARY AND CONFIDENTIAL
+
+This software and its associated documentation, schemas, configuration,
+and assets (collectively, the "Software") are the proprietary and
+confidential property of Future Horizons Education Limited ("FHE")
+and are made available exclusively under the terms below.
+
+1. No licence.
+   Unless and until FHE grants you a separate, written licence
+   agreement, no rights to use, copy, modify, distribute, or otherwise
+   exploit the Software are granted to you, expressly or by implication,
+   estoppel, or otherwise. Access to the Software (including via this
+   repository) does not constitute such a grant.
+
+2. Permitted contributor activity.
+   Individuals authorised by FHE in writing may clone, branch, and
+   submit pull requests to this repository for the sole purpose of
+   contributing to the Software. Such activity is governed by FHE's
+   contributor terms, the operating model recorded at
+   docs/SJMS-5-OPERATING-MODEL.md, and any other written instruction
+   from FHE.
+
+3. No warranty.
+   The Software is provided on an "as-is" basis without warranties of
+   any kind, whether express, implied, statutory, or otherwise,
+   including without limitation any warranties of merchantability,
+   fitness for a particular purpose, non-infringement, or accuracy.
+
+4. Limitation of liability.
+   To the maximum extent permitted by law, FHE shall not be liable for
+   any direct, indirect, incidental, special, consequential, or
+   exemplary damages arising out of or in connection with the
+   Software, even if advised of the possibility of such damages.
+
+5. Third-party components.
+   The Software incorporates third-party open-source components, each
+   governed by its own licence. The Software Bill of Materials produced
+   by .github/workflows/sbom.yml records every such component and
+   version. Nothing in this licence affects the rights and obligations
+   you have under those third-party licences with respect to those
+   components.
+
+6. Trademarks.
+   "Future Horizons Education", "FHE", and "SJMS" are trademarks of
+   Future Horizons Education Limited. This licence does not grant any
+   rights to use those trademarks.
+
+7. Governing law.
+   This licence is governed by the laws of England and Wales. Any
+   dispute arising out of or in connection with it shall be subject
+   to the exclusive jurisdiction of the courts of England and Wales.
+
+Contact: governance@futurehorizons.education

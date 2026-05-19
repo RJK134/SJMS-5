@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout SJMS-5
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -69,12 +69,12 @@ jobs:
           test -f "$GITHUB_WORKSPACE/../sjms-v4-integrated/prisma/schema.prisma"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -108,7 +108,7 @@ jobs:
           jq '{totalTables, totalRows, schemaHash}' "output/$DATE/manifest.json"
 
       - name: Upload snapshot as 30-day artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dataset-snapshot-${{ steps.resolve.outputs.date }}
           path: output/${{ steps.resolve.outputs.date }}/

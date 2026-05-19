@@ -53,21 +53,27 @@ This is **operator-driven**, one-off, takes ~2 minutes.
 
 | Batch | Title | Status |
 |---|---|---|
-| 0A1 | Bootstrap SJMS-2.5 spine via GitHub Action | scaffolded, awaits operator trigger |
-| 0A2 | Rebrand (package.json, CLAUDE.md, container names, URLs, Vercel project, docs:check) | not started |
-| 0B | Import 2.5 18B + 18C finance work as sub-commits | not started |
+| 0A1 | Bootstrap SJMS-2.5 spine via GitHub Action | **DONE 2026-05-18** — PR #34 (token fix) + workflow run 26057111322 → branch `phase-0/spine-import` created at commit `7d0c6ac` |
+| 0A2 | Rebrand (package.json, CLAUDE.md, container names, URLs, Vercel project, docs:check) | **DONE 2026-05-18** — PR #38, 23 files / +60 / −56 |
+| 0B | Import 2.5 18B + 18C finance work as sub-commits | **DONE 2026-05-18 (no-op)** — 18B + 18C (and 18D) already merged into SJMS-2.5/`main` before 0A1 fired; the spine import captured them. `git diff sjms25/main phase-0/spine-import -- server/src/` is empty. All 9 finance test files present (28 + 21 + 21 + 20 pure-function tests in `fee-calculation` / `invoice-composition` / `payment-allocation` / `payment-plan-schedule` plus 16 + 16 + 35 + 13 + 25 service-orchestration tests in `fee-assessments` / `invoices` / `payments` / `payment-plans` / `payment-instalments` services). Test-suite execution moved to 0I where the full CI baseline runs. |
 | 0C | MinIO + AES-256-GCM + cryptobox (extends secrets-at-rest) | not started |
 | 0D | BullMQ + Redis worker pattern | not started |
-| 0E | k6 scenarios | not started |
-| 0F | Remove static-secret JWT fallback in production | not started |
-| 0G | Enforce OTP MFA in Keycloak realm + smtpServer | not started |
-| 0H | Correct n8n header to `x-internal-service-key` (all 62 templates) | not started |
+| 0E | k6 scenarios | **IN FLIGHT** — PR #67 (rebased replacement for closed #46) |
+| 0F | Remove static-secret JWT fallback in production | **DONE 2026-05-19** — PR #44, commit `17b2727` |
+| 0G | Enforce OTP MFA in Keycloak realm + smtpServer | **IN FLIGHT** — PR #45 (rebased onto main; MERGEABLE) |
+| 0H | Correct n8n header to `x-internal-service-key` (all 62 templates) | **DONE 2026-05-18** — PR #41, commit `0242d09` |
 | 0I | CI green: typecheck + Prisma + tests + advisory lint + CodeQL + npm audit + k6 advisory | not started |
-| 0J | Phase 0 closeout: KI register update, BugBot review, evidence pack | not started |
-| 0K | Governance: branch protection mandate + LICENSE + CODEOWNERS placeholder + repo description | not started |
+| 0J | Phase 0 closeout: KI register update, BugBot review, evidence pack | **DONE 2026-05-18** — PR #48, commit `a89a1eb` |
+| 0K | Governance: branch protection mandate + LICENSE + CODEOWNERS placeholder + repo description | **DONE 2026-05-18** — PR #43, commit `1193786` |
 | 0L | **Transactional outbox + worker (load-bearing)** | not started |
-| 0M | Supply-chain: pin `:latest`, SBOM (CycloneDX), Trivy, Checkov | not started |
+| 0M | Supply-chain: pin `:latest`, SBOM (CycloneDX), Trivy, Checkov | **DONE 2026-05-18** — PR #42, commit `7ff4624` |
 | 0N | Dependabot alerts enforcement + BugBot/CodeRabbit wiring | not started |
+
+D-series follow-on (parked at the dataset chapter, gated on Phase 0A1):
+
+| Batch | Title | Status |
+|---|---|---|
+| D12 | Live dataset importer with schema-overlap classifier | **DONE 2026-05-19** — PR #49, commit `e31e09e`. 78 vitest passing; 11/298 dataset tables currently covered (the rest is the Phase 12 schema-convergence workload per KI-S5-202). |
 
 ## Evidence pack
 
