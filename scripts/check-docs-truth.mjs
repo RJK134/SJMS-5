@@ -49,7 +49,7 @@ function listFiles(rel, predicate) {
 
 const schema = read('prisma/schema.prisma');
 const modelCount = (schema.match(/^model /gm) || []).length;
-const expectedModels = 197;
+const expectedModels = 196;
 if (modelCount !== expectedModels) {
   fail(
     'Prisma model count',
@@ -64,10 +64,11 @@ if (modelCount !== expectedModels) {
 // ── 2. Flat router count ───────────────────────────────────────────────────
 // expectedRouters reconciliation: main was at 51 after PR #179 (+2 routers) before PR #180;
 // PR #180 added +5 finance routers → 51 + 5 = 56; PR #192 added the diagnostics
-// router → 57. Update when *.router.ts files change.
+// router → 57; Phase 1B adds sponsors + sponsor-invoices → 59.
+// Update when *.router.ts files change.
 
 const routerFiles = listFiles('server/src/api', (p) => p.endsWith('.router.ts'));
-const expectedRouters = 57;
+const expectedRouters = 59;
 if (routerFiles.length !== expectedRouters) {
   fail(
     'Flat router count',

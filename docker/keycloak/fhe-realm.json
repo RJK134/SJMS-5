@@ -9,7 +9,7 @@
   "editUsernameAllowed": false,
   "registrationAllowed": false,
   "rememberMe": true,
-  "verifyEmail": true,
+  "verifyEmail": false,
   "sslRequired": "none",
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
@@ -411,66 +411,6 @@
           }
         }
       ]
-    }
-  ],
-  "smtpServer": {
-    "host": "smtp.example.com",
-    "port": "587",
-    "from": "no-reply@futurehorizons.education",
-    "fromDisplayName": "Future Horizons Education \u2014 SJMS-5",
-    "replyTo": "support@futurehorizons.education",
-    "replyToDisplayName": "FHE Support",
-    "starttls": "true",
-    "ssl": "false",
-    "auth": "true",
-    "user": "no-reply@futurehorizons.education",
-    "envelopeFrom": "no-reply@futurehorizons.education"
-  },
-  "requiredActions": [
-    {
-      "alias": "CONFIGURE_TOTP",
-      "name": "Configure OTP",
-      "providerId": "CONFIGURE_TOTP",
-      "enabled": true,
-      "defaultAction": true,
-      "priority": 10,
-      "config": {}
-    },
-    {
-      "alias": "VERIFY_EMAIL",
-      "name": "Verify Email",
-      "providerId": "VERIFY_EMAIL",
-      "enabled": true,
-      "defaultAction": true,
-      "priority": 20,
-      "config": {}
-    },
-    {
-      "alias": "UPDATE_PASSWORD",
-      "name": "Update Password",
-      "providerId": "UPDATE_PASSWORD",
-      "enabled": true,
-      "defaultAction": false,
-      "priority": 30,
-      "config": {}
-    },
-    {
-      "alias": "UPDATE_PROFILE",
-      "name": "Update Profile",
-      "providerId": "UPDATE_PROFILE",
-      "enabled": true,
-      "defaultAction": false,
-      "priority": 40,
-      "config": {}
-    },
-    {
-      "alias": "TERMS_AND_CONDITIONS",
-      "name": "Terms and Conditions",
-      "providerId": "TERMS_AND_CONDITIONS",
-      "enabled": false,
-      "defaultAction": false,
-      "priority": 50,
-      "config": {}
     }
   ]
 }

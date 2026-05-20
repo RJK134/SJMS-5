@@ -183,39 +183,6 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Worker (BullMQ — outbox + scheduled jobs) ─────────────────
-  # Long-running BullMQ worker, sharing the API image so the dependency
-  # tree (incl. @prisma/client) is built once. Reads the same DATABASE_URL
-  # + REDIS_URL as the API; the only difference is the entrypoint —
-  # `pnpm --filter @sjms/server worker` instead of the HTTP server.
-  #
-  # Vercel cannot host this (no long-running processes); for cloud
-  # deployments, run the same Dockerfile on Railway / Render / Fly with
-  # the override `command: pnpm --filter @sjms/server worker`. Tracked
-  # in KI-S5-201.
-  worker:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    container_name: sjms5-worker
-    restart: unless-stopped
-    command: ["pnpm", "--filter", "@sjms/server", "worker"]
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://sjms:${DB_PASSWORD:-changeme}@postgres:5432/sjms?schema=sjms_app
-      REDIS_URL: redis://redis:6379
-      WEBHOOK_URL: http://n8n:5678
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY must be set in .env — no default}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - sjms5-network
-
   # ── Client (React Frontend) ───────────────────────────────────
   client:
     build:

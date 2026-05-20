@@ -166,10 +166,18 @@ const EVENT_ROUTES: Record<string, string> = {
   'payment_instalment.deleted':       '/webhook/sjms/payment-instalment/deleted',
 
   // ── Sponsors / Bursaries / Refunds (Workstream C1) ────────────────────
+  'sponsor.created':                  '/webhook/sjms/sponsor/created',
+  'sponsor.updated':                  '/webhook/sjms/sponsor/updated',
+  'sponsor.status_changed':           '/webhook/sjms/sponsor/status-changed',
+  'sponsor.deleted':                  '/webhook/sjms/sponsor/deleted',
   'sponsor_agreement.created':        '/webhook/sjms/sponsor-agreement/created',
   'sponsor_agreement.updated':        '/webhook/sjms/sponsor-agreement/updated',
   'sponsor_agreement.status_changed': '/webhook/sjms/sponsor-agreement/status-changed',
   'sponsor_agreement.deleted':        '/webhook/sjms/sponsor-agreement/deleted',
+  'sponsor_invoice.created':          '/webhook/sjms/sponsor-invoice/created',
+  'sponsor_invoice.updated':          '/webhook/sjms/sponsor-invoice/updated',
+  'sponsor_invoice.status_changed':   '/webhook/sjms/sponsor-invoice/status-changed',
+  'sponsor_invoice.deleted':          '/webhook/sjms/sponsor-invoice/deleted',
   'bursary_fund.created':             '/webhook/sjms/bursary-fund/created',
   'bursary_fund.updated':             '/webhook/sjms/bursary-fund/updated',
   'bursary_fund.deleted':             '/webhook/sjms/bursary-fund/deleted',
