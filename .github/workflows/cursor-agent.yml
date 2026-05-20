@@ -3,7 +3,7 @@ name: Cursor Agent (API-driven)
 # Drives Cursor's Background Agents API directly on GitHub events.
 # No Cursor UI automations required — everything flows through this workflow.
 #
-# Required repo secret:
+# Optional repo secret (workflow skips agent dispatch with a notice when absent):
 #   CURSOR_API_KEY  — generate at cursor.com/dashboard → Integrations → API Keys
 #
 # Triggers:
@@ -22,6 +22,7 @@ on:
       - 'scripts/**'
       - '!**/*.md'
       - '!**/*.csv'
+  merge_group:
   issues:
     types: [assigned, labeled]
   issue_comment:
@@ -169,15 +170,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Verify CURSOR_API_KEY is configured
+        id: cursor_auth
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
           if [ -z "$CURSOR_API_KEY" ]; then
-            echo "::error::CURSOR_API_KEY repo secret is missing. Get one at https://cursor.com/dashboard → Integrations → API Keys."
-            exit 1
+            echo "::notice title=Cursor Agent skipped::Repository secret CURSOR_API_KEY is not configured. Add it in GitHub: Settings → Secrets and variables → Actions → Repository secrets. Create a key at https://cursor.com/dashboard → Integrations → API Keys."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Check API key is valid
+        if: steps.cursor_auth.outputs.ok == 'true'
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
@@ -192,6 +197,7 @@ jobs:
 
       - name: Discover available models
         id: models
+        if: steps.cursor_auth.outputs.ok == 'true'
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
@@ -238,6 +244,7 @@ jobs:
           echo "model=$CHOSEN" >> "$GITHUB_OUTPUT"
 
       - name: Launch Cursor Background Agent
+        if: steps.cursor_auth.outputs.ok == 'true'
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           PROMPT: ${{ needs.classify.outputs.prompt }}

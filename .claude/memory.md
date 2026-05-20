@@ -100,3 +100,13 @@ The `.claude/memory.md` 2026-05-11 entry above is **left in place verbatim** as 
 
 - (a) Reissue `CLAUDE_CODE_OAUTH_TOKEN` — **already resolved.** Commit `f48c38b` (2026-05-11, between the previous session's close and today) switched the workflows from `CLAUDE_CODE_OAUTH_TOKEN` to API key auth. No token reissue needed.
 - (b) Set `DEMO_MODE=true` — **still pending**, but on **Vercel**, not Railway. Set it as a Project Environment Variable for the relevant environment (Production / Preview / Development as appropriate), redeploy, then verify in Vercel's Runtime Logs. PR #218 has merged so the handover's docs-PR item is also resolved.
+---
+
+## 2026-05-20
+
+### PR CI: Claude review, Cursor agent, Trivy SARIF, Checkov SARIF
+
+- `claude-code-review.yml` passes **both** `anthropic_api_key` and `claude_code_oauth_token` into `anthropics/claude-code-action` (pinned to v1.0.127 commit), skips with an Actions **notice** (including **Settings → Secrets and variables → Actions → Repository secrets**) when neither secret is set, and no-ops on **merge_group** (no PR number for the review plugin).
+- `cursor-agent.yml` skips the invoke path with the same GitHub Settings path when `CURSOR_API_KEY` is absent (notice, exit 0) instead of failing the job; documents the secret as optional.
+- `container-scan.yml` / `iac-scan.yml`: pin Trivy and Checkov actions to release SHAs (no `@master` drift), upload SARIF only when `hashFiles('*.sarif')` is non-empty, bump `upload-sarif` to v4, set Trivy `exit-code: 0` so findings remain in SARIF without blocking the upload step; add **merge_group** triggers where appropriate.
+
