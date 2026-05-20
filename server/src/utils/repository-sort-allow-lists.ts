@@ -349,6 +349,29 @@ export const SPONSOR_AGREEMENT_SORT = [
   'updatedAt',
 ] as const;
 
+export const SPONSOR_SORT = [
+  'id',
+  'name',
+  'sponsorType',
+  'isActive',
+  'country',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+export const SPONSOR_INVOICE_SORT = [
+  'id',
+  'invoiceNumber',
+  'issueDate',
+  'dueDate',
+  'amount',
+  'paidAmount',
+  'status',
+  'academicYear',
+  'createdAt',
+  'updatedAt',
+] as const;
+
 export const BURSARY_FUND_SORT = [
   'id',
   'fundName',

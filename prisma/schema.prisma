@@ -455,6 +455,15 @@ enum SponsorType {
   OTHER
 }
 
+enum SponsorInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
 enum BursaryFundType {
   BURSARY
   SCHOLARSHIP
@@ -3023,10 +3032,42 @@ model PaymentInstalment {
   @@index([paymentPlanId])
 }
 
+model Sponsor {
+  id           String      @id @default(cuid())
+  name         String
+  sponsorType  SponsorType @map("sponsor_type")
+  contactName  String?     @map("contact_name")
+  contactEmail String?     @map("contact_email")
+  contactPhone String?     @map("contact_phone")
+  addressLine1 String?     @map("address_line_1")
+  addressLine2 String?     @map("address_line_2")
+  city         String?
+  postcode     String?
+  country      String?
+  taxRef       String?     @map("tax_ref")
+  isActive     Boolean     @default(true) @map("is_active")
+  notes        String?     @db.Text
+
+  agreements SponsorAgreement[]
+  invoices   SponsorInvoice[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("sponsors")
+  @@index([sponsorType])
+  @@index([isActive])
+}
+
 model SponsorAgreement {
   id               String         @id @default(cuid())
   studentAccountId String         @map("student_account_id")
   studentAccount   StudentAccount @relation(fields: [studentAccountId], references: [id])
+  sponsorId        String?        @map("sponsor_id")
+  sponsor          Sponsor?       @relation(fields: [sponsorId], references: [id])
   sponsorName      String         @map("sponsor_name")
   sponsorType      SponsorType    @map("sponsor_type")
   agreementRef     String?        @map("agreement_ref")
@@ -3035,6 +3076,8 @@ model SponsorAgreement {
   amountReceived   Decimal        @default(0) @map("amount_received") @db.Decimal(10, 2)
   status           String         @default("active")
 
+  invoices SponsorInvoice[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   createdBy String?  @map("created_by")
@@ -3042,6 +3085,37 @@ model SponsorAgreement {
 
   @@map("sponsor_agreements")
   @@index([studentAccountId])
+  @@index([sponsorId])
+}
+
+model SponsorInvoice {
+  id                 String               @id @default(cuid())
+  sponsorId          String               @map("sponsor_id")
+  sponsor            Sponsor              @relation(fields: [sponsorId], references: [id])
+  sponsorAgreementId String?              @map("sponsor_agreement_id")
+  sponsorAgreement   SponsorAgreement?    @relation(fields: [sponsorAgreementId], references: [id])
+  invoiceNumber      String               @unique @map("invoice_number")
+  issueDate          DateTime             @map("issue_date") @db.Date
+  dueDate            DateTime             @map("due_date") @db.Date
+  academicYear       String               @map("academic_year")
+  amount             Decimal              @db.Decimal(10, 2)
+  paidAmount         Decimal              @default(0) @map("paid_amount") @db.Decimal(10, 2)
+  currency           String               @default("GBP")
+  status             SponsorInvoiceStatus @default(DRAFT)
+  sentDate           DateTime?            @map("sent_date")
+  notes              String?              @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("sponsor_invoices")
+  @@index([sponsorId])
+  @@index([sponsorAgreementId])
+  @@index([status])
+  @@index([academicYear])
 }
 
 model BursaryFund {
