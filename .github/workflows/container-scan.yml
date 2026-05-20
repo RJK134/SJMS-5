@@ -35,10 +35,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -64,10 +64,9 @@ jobs:
         id: build
 
       - name: Scan API image with Trivy
+        id: trivy-api
         if: steps.build.outputs.skipped != 'true'
-        # Pinned v0.36.0 — avoids @master drift; exit-code 0 keeps SARIF uploadable while
-        # HIGH/CRITICAL remain visible in the SARIF uploaded to code scanning.
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-api:scan
           format: sarif
@@ -90,10 +89,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -116,8 +115,9 @@ jobs:
         id: build
 
       - name: Scan client image with Trivy
+        id: trivy-client
         if: steps.build.outputs.skipped != 'true'
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-client:scan
           format: sarif

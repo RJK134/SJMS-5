@@ -26,11 +26,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run Checkov
-        # Pinned v12.1347.0 — avoids @master drift that stopped emitting SARIF reliably.
-        uses: bridgecrewio/checkov-action@99bb2caf247dfd9f03cf984373bc6043d4e32ebf
+        uses: bridgecrewio/checkov-action@v12.3102.0
         with:
           # Scan Dockerfiles, docker-compose, nginx confs, and any
           # kubernetes manifests that arrive in later phases.

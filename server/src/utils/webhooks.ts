@@ -192,6 +192,11 @@ const EVENT_ROUTES: Record<string, string> = {
   'refund_approval.updated':          '/webhook/sjms/refund-approval/updated',
   'refund_approval.status_changed':   '/webhook/sjms/refund-approval/status-changed',
   'refund_approval.deleted':          '/webhook/sjms/refund-approval/deleted',
+  // Phase 1D — REGISTRY proposes → FINANCE approves / rejects → FINANCE processes
+  'refund_approval.proposed':         '/webhook/sjms/refund-approval/proposed',
+  'refund_approval.approved':         '/webhook/sjms/refund-approval/approved',
+  'refund_approval.rejected':         '/webhook/sjms/refund-approval/rejected',
+  'refund_approval.processed':        '/webhook/sjms/refund-approval/processed',
 
   // ── Exam boards ───────────────────────────────────────────────────────
   'exam_board.scheduled':             '/webhook/sjms/exam-board/scheduled',
