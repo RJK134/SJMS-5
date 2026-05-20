@@ -34,7 +34,7 @@ import logger from '../utils/logger';
 import { closeAllWorkers, closeAllQueues } from '../utils/queue';
 import { registerExampleWorker } from './example.worker';
 import { registerOutboxWorker } from './outbox.worker';
-import { registerSjmsDatasetImportWorker } from './sjms-dataset-import.worker';
+import { registerPaymentInstalmentCronWorker } from './payment-instalment-cron.worker';
 
 async function main() {
   logger.info('[workers] starting registered workers...');
@@ -43,10 +43,7 @@ async function main() {
   // shutdown set in utils/queue.ts. Add new workers below as they land.
   registerExampleWorker();
   registerOutboxWorker();
-  // Phase D8 — weekly SJMS dataset re-import. Gated behind
-  // SJMS_ENABLE_DATASET_SCHEDULER=true so dev/test runs never touch Redis
-  // or attempt to enqueue the cron row.
-  registerSjmsDatasetImportWorker();
+  registerPaymentInstalmentCronWorker();
 
   logger.info('[workers] all workers registered; entering idle wait loop');
 
