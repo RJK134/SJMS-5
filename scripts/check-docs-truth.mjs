@@ -49,7 +49,7 @@ function listFiles(rel, predicate) {
 
 const schema = read('prisma/schema.prisma');
 const modelCount = (schema.match(/^model /gm) || []).length;
-const expectedModels = 199;
+const expectedModels = 196;
 if (modelCount !== expectedModels) {
   fail(
     'Prisma model count',

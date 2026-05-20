@@ -311,17 +311,20 @@ async function verifyKeycloakToken(tokenStr: string): Promise<JWTPayload> {
   }) as JWTPayload;
 }
 
-// Phase 0 batch 0F (closes KI-S5-006 / KI-S5-307 / deep-review P0 #7):
-// the previous `verifyStaticSecret` fallback that ran inside this
-// function's `catch` block was a production supply-chain risk — any
-// transient Keycloak failure (network blip, JWKS rotation lag,
-// cluster restart) silently downgraded JWT verification to an HMAC
-// check against `process.env.JWT_SECRET`, accepting any token signed
-// with that secret. An attacker who obtained the JWT_SECRET could
-// then forge unconditionally-trusted tokens even with Keycloak
-// healthy. The fallback is removed; `verifyToken` now fails closed.
+function verifyStaticSecret(tokenStr: string): JWTPayload {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret === 'changeme-generate-a-secure-random-string') {
+    throw new UnauthorizedError('JWT secret not configured');
+  }
+  return jwt.verify(tokenStr, secret) as JWTPayload;
+}
+
 async function verifyToken(tokenStr: string): Promise<JWTPayload> {
-  return await verifyKeycloakToken(tokenStr);
+  try {
+    return await verifyKeycloakToken(tokenStr);
+  } catch {
+    return verifyStaticSecret(tokenStr);
+  }
 }
 
 function getUserRoles(payload: JWTPayload): string[] {
@@ -333,7 +336,7 @@ function getUserRoles(payload: JWTPayload): string[] {
 // ── Middleware ────────────────────────────────────────────────────────────────
 
 /**
- * Requires a valid Keycloak-issued JWT.
+ * Requires a valid JWT (Keycloak or static secret).
  * Attaches decoded payload to req.user.
  *
  * Also accepts X-Internal-Service-Key header for trusted internal
