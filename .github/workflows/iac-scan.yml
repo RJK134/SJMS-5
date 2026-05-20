@@ -25,10 +25,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12.3102.0
         with:
           # Scan Dockerfiles, docker-compose, nginx confs, and any
           # kubernetes manifests that arrive in later phases.
@@ -43,8 +43,8 @@ jobs:
           soft_fail: true
 
       - name: Upload SARIF to GitHub code-scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('checkov.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: checkov.sarif
           category: checkov

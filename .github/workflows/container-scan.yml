@@ -33,10 +33,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -62,8 +62,10 @@ jobs:
         id: build
 
       - name: Scan API image with Trivy
+        id: trivy-api
         if: steps.build.outputs.skipped != 'true'
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-api:scan
           format: sarif
@@ -74,8 +76,8 @@ jobs:
           trivyignores: docs/operations/trivy-allowlist.yaml
 
       - name: Upload SARIF to GitHub code-scanning
-        if: always() && steps.build.outputs.skipped != 'true'
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.build.outputs.skipped != 'true' && hashFiles('trivy-api.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-api.sarif
           category: trivy-api
@@ -86,10 +88,10 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -112,8 +114,10 @@ jobs:
         id: build
 
       - name: Scan client image with Trivy
+        id: trivy-client
         if: steps.build.outputs.skipped != 'true'
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-client:scan
           format: sarif
@@ -124,8 +128,8 @@ jobs:
           trivyignores: docs/operations/trivy-allowlist.yaml
 
       - name: Upload SARIF to GitHub code-scanning
-        if: always() && steps.build.outputs.skipped != 'true'
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.build.outputs.skipped != 'true' && hashFiles('trivy-client.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-client.sarif
           category: trivy-client
