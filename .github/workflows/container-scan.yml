@@ -64,7 +64,6 @@ jobs:
       - name: Scan API image with Trivy
         id: trivy-api
         if: steps.build.outputs.skipped != 'true'
-        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-api:scan
@@ -116,7 +115,6 @@ jobs:
       - name: Scan client image with Trivy
         id: trivy-client
         if: steps.build.outputs.skipped != 'true'
-        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: sjms5-client:scan
