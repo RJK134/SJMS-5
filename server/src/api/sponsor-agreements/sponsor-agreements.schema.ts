@@ -22,6 +22,7 @@ export const querySchema = z.object({
 
 export const createSchema = z.object({
   studentAccountId: z.string().min(1),
+  sponsorId: z.string().min(1).optional(),
   sponsorName: z.string().min(1),
   sponsorType: SPONSOR_TYPE,
   agreementRef: z.string().optional(),
@@ -32,6 +33,7 @@ export const createSchema = z.object({
 });
 
 export const updateSchema = z.object({
+  sponsorId: z.string().min(1).nullable().optional(),
   sponsorName: z.string().min(1).optional(),
   sponsorType: SPONSOR_TYPE.optional(),
   agreementRef: z.string().nullable().optional(),
