@@ -3,6 +3,7 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
+  merge_group:
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
@@ -12,6 +13,7 @@ on:
 
 jobs:
   claude-review:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
@@ -26,15 +28,39 @@ jobs:
       id-token: write
 
     steps:
+      - name: Merge group (no PR-scoped review)
+        if: github.event_name == 'merge_group'
+        run: |
+          echo "::notice::Claude Code Review runs on pull_request only (merge queue has no PR number for the review plugin). PR-time runs satisfy this check before merge."
+          exit 0
+
       - name: Checkout repository
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
+      - name: Ensure Claude credentials are configured
+        id: credentials
+        if: github.event_name == 'pull_request'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::notice title=Claude Code Review skipped::Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set. Add one or both in GitHub: Settings → Secrets and variables → Actions → Repository secrets."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        if: github.event_name == 'pull_request' && steps.credentials.outputs.configured == 'true'
+        # Pinned release v1.0.127 (immutable commit of anthropics/claude-code-action).
+        uses: anthropics/claude-code-action@1dc994ee7a008f0ecc866d9ac23ef036b7229f84
         with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'

@@ -13,16 +13,21 @@ vi.mock('../../repositories/sponsorInvoice.repository', () => ({
 vi.mock('../../repositories/sponsor.repository', () => ({
   getById: vi.fn(),
 }));
+vi.mock('../../repositories/sponsorAgreement.repository', () => ({
+  getById: vi.fn(),
+}));
 vi.mock('../../utils/audit', () => ({ logAudit: vi.fn() }));
 vi.mock('../../utils/webhooks', () => ({ emitEvent: vi.fn() }));
 
 import * as service from '../../api/sponsor-invoices/sponsor-invoices.service';
 import * as repo from '../../repositories/sponsorInvoice.repository';
 import * as sponsorRepo from '../../repositories/sponsor.repository';
+import * as sponsorAgreementRepo from '../../repositories/sponsorAgreement.repository';
 import { logAudit } from '../../utils/audit';
 import { emitEvent } from '../../utils/webhooks';
 
 const mockedRepo = vi.mocked(repo);
+const mockedAgreementRepo = vi.mocked(sponsorAgreementRepo);
 const mockedSponsorRepo = vi.mocked(sponsorRepo);
 const mockedLogAudit = vi.mocked(logAudit);
 const mockedEmitEvent = vi.mocked(emitEvent);
@@ -83,6 +88,10 @@ describe('sponsor-invoices.service', () => {
   describe('create()', () => {
     it('creates an invoice, audits, and emits sponsor_invoice.created with Decimal-as-string compat', async () => {
       mockedSponsorRepo.getById.mockResolvedValue(fakeSponsor);
+      mockedAgreementRepo.getById.mockResolvedValue({
+        id: 'spa-1',
+        sponsorId: 'spn-1',
+      } as any);
       mockedRepo.findByInvoiceNumber.mockResolvedValue(null);
       mockedRepo.create.mockResolvedValue(fakeInvoice as any);
 
@@ -165,6 +174,107 @@ describe('sponsor-invoices.service', () => {
 
       expect(mockedRepo.create).not.toHaveBeenCalled();
     });
+
+    it('throws ValidationError when sponsorAgreementId references a non-existent agreement', async () => {
+      mockedSponsorRepo.getById.mockResolvedValue(fakeSponsor);
+      mockedAgreementRepo.getById.mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          {
+            sponsorId: 'spn-1',
+            sponsorAgreementId: 'missing-agreement',
+            invoiceNumber: 'SINV-2025-100',
+            issueDate: new Date(),
+            dueDate: new Date(),
+            academicYear: '2025/26',
+            amount: 100,
+          } as any,
+          'user-42',
+          fakeReq,
+        ),
+      ).rejects.toThrow(ValidationError);
+
+      expect(mockedRepo.findByInvoiceNumber).not.toHaveBeenCalled();
+      expect(mockedRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ValidationError when sponsorAgreement belongs to a different sponsor', async () => {
+      mockedSponsorRepo.getById.mockResolvedValue(fakeSponsor);
+      mockedAgreementRepo.getById.mockResolvedValue({
+        id: 'spa-9',
+        sponsorId: 'spn-OTHER',
+      } as any);
+
+      await expect(
+        service.create(
+          {
+            sponsorId: 'spn-1',
+            sponsorAgreementId: 'spa-9',
+            invoiceNumber: 'SINV-2025-101',
+            issueDate: new Date(),
+            dueDate: new Date(),
+            academicYear: '2025/26',
+            amount: 100,
+          } as any,
+          'user-42',
+          fakeReq,
+        ),
+      ).rejects.toThrow(/refusing to attach invoice across sponsors/);
+
+      expect(mockedRepo.findByInvoiceNumber).not.toHaveBeenCalled();
+      expect(mockedRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a sponsorAgreement with a null sponsorId (legacy denormalised row)', async () => {
+      mockedSponsorRepo.getById.mockResolvedValue(fakeSponsor);
+      mockedAgreementRepo.getById.mockResolvedValue({
+        id: 'spa-legacy',
+        sponsorId: null,
+      } as any);
+      mockedRepo.findByInvoiceNumber.mockResolvedValue(null);
+      mockedRepo.create.mockResolvedValue(fakeInvoice as any);
+
+      await expect(
+        service.create(
+          {
+            sponsorId: 'spn-1',
+            sponsorAgreementId: 'spa-legacy',
+            invoiceNumber: 'SINV-2025-LEG',
+            issueDate: new Date(),
+            dueDate: new Date(),
+            academicYear: '2025/26',
+            amount: 100,
+          } as any,
+          'user-42',
+          fakeReq,
+        ),
+      ).resolves.toBeDefined();
+
+      expect(mockedRepo.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the agreement lookup entirely when sponsorAgreementId is not supplied', async () => {
+      mockedSponsorRepo.getById.mockResolvedValue(fakeSponsor);
+      mockedRepo.findByInvoiceNumber.mockResolvedValue(null);
+      mockedRepo.create.mockResolvedValue(fakeInvoice as any);
+
+      await service.create(
+        {
+          sponsorId: 'spn-1',
+          invoiceNumber: 'SINV-2025-NO-AGREEMENT',
+          issueDate: new Date(),
+          dueDate: new Date(),
+          academicYear: '2025/26',
+          amount: 100,
+        } as any,
+        'user-42',
+        fakeReq,
+      );
+
+      expect(mockedAgreementRepo.getById).not.toHaveBeenCalled();
+      expect(mockedRepo.create).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('update()', () => {
@@ -226,6 +336,59 @@ describe('sponsor-invoices.service', () => {
       const updatedEvent = findEvent('sponsor_invoice.updated') as any;
       expect(updatedEvent.data.paidAmount).toBe(5000);
       expect(updatedEvent.data.amount).toBe(12000);
+    });
+
+    it('throws ValidationError when sponsorAgreementId on update references a non-existent agreement', async () => {
+      mockedRepo.getById.mockResolvedValue(fakeInvoice as any);
+      mockedAgreementRepo.getById.mockResolvedValue(null);
+
+      await expect(
+        service.update(
+          'sinv-1',
+          { sponsorAgreementId: 'missing-agreement' } as any,
+          'user-42',
+          fakeReq,
+        ),
+      ).rejects.toThrow(ValidationError);
+
+      expect(mockedRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('throws ValidationError when sponsorAgreementId on update belongs to a different sponsor', async () => {
+      mockedRepo.getById.mockResolvedValue(fakeInvoice as any);
+      mockedAgreementRepo.getById.mockResolvedValue({
+        id: 'spa-9',
+        sponsorId: 'spn-OTHER',
+      } as any);
+
+      await expect(
+        service.update(
+          'sinv-1',
+          { sponsorAgreementId: 'spa-9' } as any,
+          'user-42',
+          fakeReq,
+        ),
+      ).rejects.toThrow(/refusing to attach invoice across sponsors/);
+
+      expect(mockedRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('skips the agreement lookup on update when sponsorAgreementId is null or absent', async () => {
+      mockedRepo.getById.mockResolvedValue(fakeInvoice as any);
+      mockedRepo.update.mockResolvedValue(fakeInvoice as any);
+
+      // null clears the FK; the validator should not run
+      await service.update(
+        'sinv-1',
+        { sponsorAgreementId: null } as any,
+        'user-42',
+        fakeReq,
+      );
+      expect(mockedAgreementRepo.getById).not.toHaveBeenCalled();
+
+      // absent field on a metadata-only update
+      await service.update('sinv-1', { notes: 'tweak' } as any, 'user-42', fakeReq);
+      expect(mockedAgreementRepo.getById).not.toHaveBeenCalled();
     });
   });
 
