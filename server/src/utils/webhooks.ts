@@ -184,6 +184,7 @@ const EVENT_ROUTES: Record<string, string> = {
   'bursary_application.created':      '/webhook/sjms/bursary-application/created',
   'bursary_application.updated':      '/webhook/sjms/bursary-application/updated',
   'bursary_application.status_changed':'/webhook/sjms/bursary-application/status-changed',
+  'bursary_application.auto_decided': '/webhook/sjms/bursary-application/auto-decided',
   'bursary_application.deleted':      '/webhook/sjms/bursary-application/deleted',
   'credit_note.created':              '/webhook/sjms/credit-note/created',
   'credit_note.updated':              '/webhook/sjms/credit-note/updated',

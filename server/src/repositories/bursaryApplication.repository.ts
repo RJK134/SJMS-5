@@ -97,3 +97,24 @@ export async function findAwardedByStudent(
     orderBy: { applicationDate: 'asc' },
   });
 }
+
+/**
+ * Phase 1C — transaction-aware status + awardAmount update used by the
+ * bursary auto-decisioning pipeline so the application flip stays
+ * atomic with the fund's `allocated` / `remaining` budget update.
+ */
+export async function updateDecisionInTx(
+  id: string,
+  data: { status: string; awardAmount?: number | null; updatedBy?: string },
+  tx: Prisma.TransactionClient,
+) {
+  return tx.bursaryApplication.update({
+    where: { id },
+    data: {
+      status: data.status as Prisma.BursaryApplicationUpdateInput['status'],
+      ...(data.awardAmount !== undefined ? { awardAmount: data.awardAmount } : {}),
+      ...(data.updatedBy ? { updatedBy: data.updatedBy } : {}),
+    },
+    include: defaultInclude,
+  });
+}

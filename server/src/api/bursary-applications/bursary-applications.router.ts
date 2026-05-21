@@ -8,6 +8,7 @@ import {
   updateSchema,
   querySchema,
   paramsSchema,
+  autoDecideSchema,
 } from './bursary-applications.schema';
 
 export const bursaryApplicationsRouter = Router();
@@ -17,6 +18,17 @@ bursaryApplicationsRouter.get(
   validateQuery(querySchema),
   requireRole(...ROLE_GROUPS.FINANCE),
   ctrl.list,
+);
+
+// POST /v1/bursary-applications/:id/auto-decide (Phase 1C). Mounted
+// before the dynamic `/:id` PATCH/GET routes so the literal action
+// path wins. FINANCE-role gated (same group that does manual override).
+bursaryApplicationsRouter.post(
+  '/:id/auto-decide',
+  validateParams(paramsSchema),
+  validate(autoDecideSchema),
+  requireRole(...ROLE_GROUPS.FINANCE),
+  ctrl.autoDecide,
 );
 
 bursaryApplicationsRouter.get(

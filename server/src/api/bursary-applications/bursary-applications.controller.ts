@@ -38,3 +38,23 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
     res.status(204).end();
   } catch (err) { next(err); }
 }
+
+/**
+ * POST /v1/bursary-applications/:id/auto-decide (Phase 1C).
+ *
+ * Runs the bursary eligibility rule engine against the application and
+ * (by default) persists the resulting status / award atomically with the
+ * fund's budget update.
+ */
+export async function autoDecide(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = req.params.id as string;
+    const data = await service.autoDecideForApplication(
+      id,
+      req.body as service.AutoDecideOptions,
+      req.user?.sub ?? 'system',
+      req,
+    );
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
