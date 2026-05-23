@@ -23,6 +23,17 @@ jobs:
     # Mandatory: catches drift between documented counts (models, routers,
     # roles, workflows) and the actual repository state. The script under
     # scripts/check-docs-truth.mjs is the single source of truth.
+    #
+    # Also runs the post-1C undeclared-imports guardrail
+    # (`scripts/check-undeclared-imports.mjs`) which scans server/src,
+    # client/src, and scripts/ for bare `import 'pkg'` statements whose
+    # `pkg` is not declared in any workspace package.json. Catches the
+    # class of regression Phase 1C surfaced — PR #74 silently removed
+    # `bullmq` from `server/package.json` even though `queue.ts` still
+    # imported it, and the hoisted node_modules masked the issue
+    # locally; CI's `npm ci` blew up on the next PR that triggered a
+    # fresh install. The check runs in the docs-truth job (no install
+    # required) so it is a fast, mandatory gate on every PR.
     steps:
       - uses: actions/checkout@v6
       - name: Use Node.js 20
@@ -31,6 +42,8 @@ jobs:
           node-version: '20'
       - name: Run docs truth check
         run: node scripts/check-docs-truth.mjs
+      - name: Check for undeclared imports
+        run: node scripts/check-undeclared-imports.mjs
 
   server-quality:
     name: Server quality gate

@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  SJMS 2.5 — Prisma Schema                                             ║
+// ║  SJMS-5 — Prisma Schema                                                ║
 // ║  Student Journey Management System — Future Horizons Education         ║
-// ║  183 models · 24 domains · SITS-aligned · HESA Data Futures compliant  ║
+// ║  199 models · 24 domains · SITS-aligned · HESA Data Futures compliant  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 generator client {
