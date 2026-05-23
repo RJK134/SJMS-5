@@ -51,3 +51,23 @@ export const updateSchema = z
       });
     }
   });
+
+// ── Phase 1C — POST /v1/bursary-applications/:id/auto-decide ──────────────
+//
+// Drives `bursary-applications.service.autoDecideForApplication`.
+// Defaults match the service-layer defaults: persist=true (commit the
+// decision), force=false (refuse to overwrite a terminal status).
+export const autoDecideSchema = z.object({
+  persist: z.boolean().optional(),
+  force: z.boolean().optional(),
+  rules: z
+    .object({
+      autoRejectAboveIncome: z.number().nonnegative().optional(),
+      autoApproveBelowIncome: z.number().nonnegative().optional(),
+      defaultAwardAmount: z.number().nonnegative().optional(),
+      maxAwardPerStudent: z.number().nonnegative().optional(),
+      requiresCircumstancesDesc: z.boolean().optional(),
+      feeStatusAllowList: z.array(z.string().min(1)).optional(),
+    })
+    .optional(),
+});

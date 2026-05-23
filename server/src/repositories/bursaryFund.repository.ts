@@ -72,3 +72,45 @@ export async function update(id: string, data: Prisma.BursaryFundUpdateInput) {
 export async function remove(id: string) {
   return prisma.bursaryFund.delete({ where: { id } });
 }
+
+/**
+ * Phase 1C — transaction-aware budget reservation used by the bursary
+ * auto-decisioning pipeline. Increments `allocated` by `amount` and
+ * decrements `remaining` by the same amount inside the caller's
+ * `$transaction` so the fund's running totals stay consistent with the
+ * application's flipped status. The caller is responsible for ensuring
+ * `amount > 0` and `amount <= remaining` (the pure decision engine
+ * enforces both before this is reached).
+ */
+export async function reserveBudgetInTx(
+  id: string,
+  amount: number,
+  tx: Prisma.TransactionClient,
+) {
+  return tx.bursaryFund.update({
+    where: { id },
+    data: {
+      allocated: { increment: amount },
+      remaining: { decrement: amount },
+    },
+  });
+}
+
+/**
+ * Phase 1C — transaction-aware budget release used when a previously
+ * APPROVED application is later REJECTED (or vice-versa). Mirror of
+ * `reserveBudgetInTx`: decrements `allocated`, increments `remaining`.
+ */
+export async function releaseBudgetInTx(
+  id: string,
+  amount: number,
+  tx: Prisma.TransactionClient,
+) {
+  return tx.bursaryFund.update({
+    where: { id },
+    data: {
+      allocated: { decrement: amount },
+      remaining: { increment: amount },
+    },
+  });
+}

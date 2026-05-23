@@ -5530,3 +5530,46 @@ model DataClassification {
   @@map("data_classifications")
   @@unique([modelName, fieldName])
 }
+
+// ── Phase 0L — Transactional outbox ─────────────────────────────────────────
+//
+// Restored to the schema as part of Phase 1C after PR #74 inadvertently
+// reverted the 0L model definitions (the migration
+// `20260519000000_add_outbox_events` and the worker code in
+// `server/src/utils/outbox.ts` / `server/src/utils/outbox-dispatch.ts` /
+// `server/src/workers/outbox.worker.ts` all remained in place, so the
+// table is on the database and the worker still binds against it — only
+// the Prisma client typings were missing).
+model OutboxEvent {
+  id            String              @id @default(cuid())
+  eventName     String              @map("event_name")
+  entityType    String              @map("entity_type")
+  entityId      String              @map("entity_id")
+  actorId       String              @map("actor_id")
+  payload       Json
+  requestId     String?             @map("request_id")
+  status        OutboxEventStatus   @default(PENDING)
+  attempts      Int                 @default(0)
+  lastAttemptAt DateTime?           @map("last_attempt_at")
+  deliveredAt   DateTime?           @map("delivered_at")
+  errorMessage  String?             @map("error_message") @db.Text
+  availableAt   DateTime            @default(now()) @map("available_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+
+  @@map("outbox_events")
+  @@index([status, availableAt])
+  @@index([eventName])
+  @@index([entityType, entityId])
+}
+
+enum OutboxEventStatus {
+  PENDING
+  IN_FLIGHT
+  DELIVERED
+  FAILED
+  DISCARDED
+}
