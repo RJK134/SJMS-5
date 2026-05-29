@@ -39,7 +39,7 @@
   "author": "Future Horizons Education",
   "license": "UNLICENSED",
   "devDependencies": {
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
