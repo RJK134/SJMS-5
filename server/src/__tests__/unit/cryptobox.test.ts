@@ -103,7 +103,12 @@ describe('cryptobox', () => {
     const payload = Buffer.alloc(1024 * 1024).fill(0xab);
     const env = encrypt({ plaintext: payload, aad: 'big' });
     expect(decrypt({ envelope: env, aad: 'big' })).toEqual(payload);
-  });
+    // Explicit 30s ceiling: a 1MB AES round-trip is fast un-instrumented
+    // (~2s) but the v8 coverage provider (vitest 4, per PR #95) roughly
+    // doubles it to ~5s — borderline against vitest's 5s default and
+    // flaky on shared CI runners. The assertion is unchanged; this only
+    // raises the wall-time ceiling for a legitimately heavy test.
+  }, 30_000);
 
   it('throws on empty AAD when stored ciphertext is verified against a different empty AAD', () => {
     // Empty AAD round-trips fine when intentional.
