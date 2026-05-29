@@ -38,7 +38,9 @@
   },
   "author": "Future Horizons Education",
   "license": "UNLICENSED",
-  "devDependencies": {},
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "prisma": "^6.19.3",
