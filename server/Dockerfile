@@ -7,7 +7,7 @@
 # manifest at /package.json. docker-compose.yml sets context: . accordingly.
 
 # ─── Stage 1: builder ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -40,7 +40,7 @@ RUN npx prisma generate --schema=prisma/schema.prisma
 RUN npm run build --workspace=server
 
 # ─── Stage 2: production ──────────────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 WORKDIR /app
 
