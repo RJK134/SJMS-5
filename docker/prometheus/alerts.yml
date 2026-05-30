@@ -1,0 +1,86 @@
+# SJMS-5 — Prometheus alert rules
+#
+# First version-controlled Prometheus rule set for SJMS-5 (introduced in
+# Phase 1E alongside the finance ledger-anomaly metrics). Mount this into a
+# Prometheus instance that scrapes the API's `/metrics` endpoint, e.g.:
+#
+#   # prometheus.yml
+#   rule_files:
+#     - /etc/prometheus/alerts.yml
+#   scrape_configs:
+#     - job_name: sjms-api
+#       metrics_path: /metrics
+#       static_configs:
+#         - targets: ['api:3001']
+#
+# The metrics referenced below are emitted by server/src/utils/metrics.ts
+# and updated on every ledger-anomaly scan (the BullMQ cron in
+# server/src/workers/ledger-anomaly-cron.worker.ts, and the on-demand
+# POST /v1/ledger-anomalies/scan endpoint).
+
+groups:
+  - name: sjms-ledger-anomalies
+    rules:
+      # A HIGH-severity ledger anomaly (cross-account ChargeLine, duplicate
+      # invoice number, or a large negative balance) means money is
+      # attributed wrongly or an invoice identity collides — page on it.
+      - alert: LedgerHighSeverityAnomaly
+        expr: sum(sjms_ledger_anomalies{severity="HIGH"}) > 0
+        for: 5m
+        labels:
+          severity: critical
+          domain: finance
+        annotations:
+          summary: "High-severity ledger anomaly detected"
+          description: >-
+            The finance ledger anomaly scan found one or more HIGH-severity
+            anomalies (duplicate invoice number, cross-account charge line, or
+            a negative balance at/above the HIGH threshold). Inspect via
+            POST /v1/ledger-anomalies/scan and the ledger.anomaly_detected
+            webhook events.
+
+      # Any anomaly that persists for 30 minutes is worth a warning — it
+      # means a MEDIUM finding (recoverable orphan charge, small credit
+      # balance) has not been triaged.
+      - alert: LedgerAnomaliesPresent
+        expr: sum(sjms_ledger_anomalies) > 0
+        for: 30m
+        labels:
+          severity: warning
+          domain: finance
+        annotations:
+          summary: "Ledger anomalies present"
+          description: >-
+            The finance ledger anomaly scan has reported one or more anomalies
+            that have persisted for 30 minutes without being resolved.
+
+      # If the scan stops running, the gauges go stale and the two alerts
+      # above silently stop reflecting reality. Fire when no successful scan
+      # has completed in 48h (the daily cron should refresh every 24h).
+      - alert: LedgerAnomalyScanStalled
+        expr: time() - sjms_ledger_anomaly_last_scan_timestamp > 172800
+        for: 1h
+        labels:
+          severity: warning
+          domain: finance
+        annotations:
+          summary: "Ledger anomaly scan has not run recently"
+          description: >-
+            No successful ledger anomaly scan has completed in over 48 hours.
+            The detection cron (SJMS_ENABLE_LEDGER_ANOMALY_CRON on the worker
+            host) may be down, so anomaly metrics are stale.
+
+      # The scan itself erroring (DB unreachable, query failure) is its own
+      # signal — distinct from "scan ran and found anomalies".
+      - alert: LedgerAnomalyScanFailing
+        expr: increase(sjms_ledger_anomaly_scans_total{status="failure"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          domain: finance
+        annotations:
+          summary: "Ledger anomaly scan is failing"
+          description: >-
+            One or more ledger anomaly scans have thrown in the last hour
+            (status="failure"). The scan is read-only, so this points at a DB
+            or query problem rather than a data anomaly.

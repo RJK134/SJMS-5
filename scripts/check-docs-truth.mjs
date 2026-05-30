@@ -64,11 +64,12 @@ if (modelCount !== expectedModels) {
 // ── 2. Flat router count ───────────────────────────────────────────────────
 // expectedRouters reconciliation: main was at 51 after PR #179 (+2 routers) before PR #180;
 // PR #180 added +5 finance routers → 51 + 5 = 56; PR #192 added the diagnostics
-// router → 57; Phase 1B adds sponsors + sponsor-invoices → 59.
+// router → 57; Phase 1B adds sponsors + sponsor-invoices → 59; Phase 1E adds
+// ledger-anomalies → 60.
 // Update when *.router.ts files change.
 
 const routerFiles = listFiles('server/src/api', (p) => p.endsWith('.router.ts'));
-const expectedRouters = 59;
+const expectedRouters = 60;
 if (routerFiles.length !== expectedRouters) {
   fail(
     'Flat router count',

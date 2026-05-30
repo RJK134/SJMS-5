@@ -35,6 +35,7 @@ import { closeAllWorkers, closeAllQueues } from '../utils/queue';
 import { registerExampleWorker } from './example.worker';
 import { registerOutboxWorker } from './outbox.worker';
 import { registerPaymentInstalmentCronWorker } from './payment-instalment-cron.worker';
+import { registerLedgerAnomalyCronWorker } from './ledger-anomaly-cron.worker';
 
 async function main() {
   logger.info('[workers] starting registered workers...');
@@ -44,6 +45,7 @@ async function main() {
   registerExampleWorker();
   registerOutboxWorker();
   registerPaymentInstalmentCronWorker();
+  registerLedgerAnomalyCronWorker();
 
   logger.info('[workers] all workers registered; entering idle wait loop');
 
