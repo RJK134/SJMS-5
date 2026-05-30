@@ -33,7 +33,15 @@ jobs:
         with:
           # Scan Dockerfiles, docker-compose, nginx confs, and any
           # kubernetes manifests that arrive in later phases.
-          framework: dockerfile,docker_compose,kubernetes
+          #
+          # Note: Checkov has no `docker_compose` framework — compose
+          # files are policy-checked via the generic `yaml` framework
+          # (which carries the dedicated CKV_DOCKER_* compose rules).
+          # The previous `dockerfile,docker_compose,kubernetes` value
+          # was rejected as an invalid framework, which is what made
+          # the IaC scan job fail on every PR with no Dockerfile
+          # findings actually surfaced.
+          framework: dockerfile,kubernetes,yaml
           # Conventional Checkov skip-rules are tracked in
           # docs/operations/checkov-allowlist.md (created when the
           # first skip is genuinely needed). Today: zero skips.
