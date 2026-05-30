@@ -26,7 +26,8 @@
     "deploy:init": "tsx scripts/deploy-init.ts",
     "diagnose:vercel": "tsx scripts/diagnose-vercel-neon.ts",
     "provision:workflows": "npx tsx scripts/provision-n8n-workflows.ts",
-    "docs:check": "node scripts/check-docs-truth.mjs"
+    "docs:check": "node scripts/check-docs-truth.mjs",
+    "check:imports": "node scripts/check-undeclared-imports.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -37,10 +38,13 @@
   },
   "author": "Future Horizons Education",
   "license": "UNLICENSED",
-  "devDependencies": {},
+  "devDependencies": {
+    "vitest": "^4.1.5"
+  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "prisma": "^6.19.3",
+    "seedrandom": "^3.0.5",
     "tsx": "^4.22.1",
     "zod": "^4.4.3"
   }

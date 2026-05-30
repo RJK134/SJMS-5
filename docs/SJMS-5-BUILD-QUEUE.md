@@ -1,8 +1,8 @@
 # SJMS-5 — Build Queue
 
-> **Current Phase:** **Phase 0 — Spine Import**, expanded scope per [`SJMS-5-PLAN-AMENDMENTS-2026-05-16.md`](SJMS-5-PLAN-AMENDMENTS-2026-05-16.md).
+> **Current Phase:** **Phase 1 — Finance closeout** (in flight on `main`). Batches 1A, 1B, 1B.1, 1D, 1C have all merged. Remaining: **1E** (ledger anomaly detection) → **1F** (finance dashboards) → **1G** (closeout) → **1H** (optimistic locking, STOP-gate-adjacent) → **1I** (AuditLog FK hardening). After 1I closes, the next non-STOP-gated phase is Phase 3 (HESA / UKVI / regulatory).
 >
-> **Active branches:** `chore/plan-amendments-and-skills-leads` (this branch; refinement PR). Phase 0 implementation will branch as `phase-0/spine-import` once the amendments PR merges.
+> **Active branches:** none (last merge was PR #88 — Phase 1C — at commit `8ecfd4c`). Next batch will branch off `main`.
 >
 > **Base:** `main` (founding plan merged via PR #1).
 >
@@ -21,7 +21,7 @@
 | Phase | Title | HERM | Branch | Status | STOP-gate |
 |---|---|---|---|---|---|
 | 0 | Spine import + convergence baseline (expanded) | — | merged to `main` | **✅ COMPLETE 2026-05-19** — all 14 batches on `main`; see [`SJMS-5-KNOWN-ISSUES.md`](SJMS-5-KNOWN-ISSUES.md) "Phase 0 — COMPLETE" section for the merge ledger | ✅ Option B + Option 1 amendments signed off 2026-05-16 |
-| 1 | Finance closeout (absorb 2.5 18D–F + locking + audit FK) | L3 | `phase-1/finance-closeout` | not started | none |
+| 1 | Finance closeout (absorb 2.5 18D–F + locking + audit FK) | L3 | per-batch sub-branches off `main` (1A–1C, 1D merged) | **in flight** — 5 of 9 batches merged (1A `5089793`, 1B `227ad46`, 1B.1 `b82f141`, 1D `b6ca213`, 1C `8ecfd4c`); remaining 1E / 1F / 1G / 1H / 1I | none (1H soft-gate flagged) |
 | 2 | Multi-tenancy substrate | L8, L10 | `phase-2/multi-tenancy-substrate` | not started | **design doc** (acknowledged) |
 | 3 | HESA / UKVI / regulatory utilities | L4 | `phase-3/hesa-ukvi-regulatory` | not started | none |
 | 4 | PGR domain | L2.9 | `phase-4/pgr-domain` | not started | none |
