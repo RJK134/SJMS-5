@@ -89,7 +89,7 @@ KIs **partially closed** — structural change in place, operator action remains
 
 | ID | Description | Source | Target phase |
 |---|---|---|---|
-| KI-S5-101 | `HesaReturns` page throws TypeError on seeded payload (undefined `toLocaleString` on missing numerator) | v4 live build | Phase 3 (3G) |
+| KI-S5-101 | `HesaReturns` page throws TypeError on seeded payload (undefined `toLocaleString` on missing numerator) | v4 live build | **CLOSED** by Phase 3G — verified `client/src/pages/reports/HESAReturn.tsx` on `main` already renders `Student Records` from `students?.pagination?.total ?? 0` (no `toLocaleString` on possibly-undefined) and surfaces an explicit error card when the list query fails; the v4 TypeError path does not exist on SJMS-5. A regression test against the page is deferred to Phase 9 alongside the client Vitest scaffolding (client has Playwright E2E only today). |
 | KI-S5-102 | `/staff/finance-overview` returns 404 against seeded data | v4 live build | **CLOSED** by Phase 1F — `client/src/pages/finance/Overview.tsx` mounted at `/admin/finance/overview`, backed by `GET /v1/finance/overview` (FINANCE-gated aggregate of collection totals, ageing buckets, sponsor liability, bursary spend) plus inline Phase 1E ledger-anomaly scan trigger |
 | KI-S5-103 | SAML federation claimed in v4 README but not implemented | v4 README vs code | Phase 12 (12G) |
 | KI-S5-104 | Multi-tenancy claim outpaces enforcement (tenantId only on User) | v4 schema | Phase 2 |
