@@ -49,6 +49,7 @@ import Sponsors from './finance/Sponsors';
 import Bursaries from './finance/Bursaries';
 import DebtManagement from './finance/DebtManagement';
 import Refunds from './finance/Refunds';
+import FinanceOverview from './finance/Overview';
 
 // Phase 5B — Attendance
 import AttendanceRecords from './attendance/AttendanceRecords';
@@ -153,6 +154,8 @@ function AdminContent() {
       <Route path="/admin/assessment/grade-distribution" component={GradeDistribution} />
 
       {/* Finance */}
+      {/* Phase 1F — finance dashboard overview (closes KI-S5-102) */}
+      <Route path="/admin/finance/overview" component={FinanceOverview} />
       <Route path="/admin/finance/accounts/:studentId" component={AccountDetail} />
       <Route path="/admin/finance/accounts" component={AccountList} />
       <Route path="/admin/finance/invoicing" component={Invoicing} />

@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import * as repo from '../../repositories/finance.repository';
+import * as overviewRepo from '../../repositories/financeOverview.repository';
 import { logAudit } from '../../utils/audit';
 import { emitEvent } from '../../utils/webhooks';
 import { NotFoundError } from '../../utils/errors';
@@ -112,4 +113,14 @@ export async function listTransactions(studentAccountId: string, query: Transact
     { transactionType, status, fromDate, toDate },
     { cursor, limit, sort, order },
   );
+}
+
+// ── Phase 1F — staff finance dashboard overview ─────────────────────────────
+//
+// `GET /v1/finance/overview` returns a single aggregated payload for the
+// staff finance dashboard (collection totals, ageing buckets, sponsor
+// liability, bursary spend). Read-only — surfaces existing data, does not
+// mutate, does not emit events. Closes KI-S5-102.
+export async function getOverview(asOf?: Date) {
+  return overviewRepo.getOverview(asOf ?? new Date());
 }

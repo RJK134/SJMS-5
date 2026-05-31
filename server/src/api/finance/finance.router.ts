@@ -8,6 +8,10 @@ import { createSchema, updateSchema, querySchema, paramsSchema, transactionsPara
 
 export const financeRouter = Router();
 
+// Phase 1F — staff finance dashboard. Mounted before `/:id` so the literal
+// path wins. FINANCE-role gated (read-only aggregates over the finance
+// domain). Closes KI-S5-102.
+financeRouter.get('/overview', requireRole(...ROLE_GROUPS.FINANCE), ctrl.getOverview);
 financeRouter.get('/transactions/:studentAccountId', validateParams(transactionsParamsSchema), validateQuery(transactionsQuerySchema), requireRole(...ROLE_GROUPS.ALL_AUTHENTICATED), requireOwnership(ownerLookup.studentAccountByTransactionsParam), ctrl.listTransactions);
 financeRouter.get('/', validateQuery(querySchema), requireRole(...ROLE_GROUPS.ALL_AUTHENTICATED), scopeToUser('studentId'), ctrl.list);
 financeRouter.get('/:id', validateParams(paramsSchema), requireRole(...ROLE_GROUPS.FINANCE), ctrl.getById);

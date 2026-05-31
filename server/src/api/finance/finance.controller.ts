@@ -46,3 +46,11 @@ export async function listTransactions(req: Request, res: Response, next: NextFu
     res.json({ success: true, ...result });
   } catch (err) { next(err); }
 }
+
+// Phase 1F — staff finance dashboard overview. Closes KI-S5-102.
+export async function getOverview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.getOverview();
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
