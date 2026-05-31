@@ -199,6 +199,10 @@ const EVENT_ROUTES: Record<string, string> = {
   'refund_approval.rejected':         '/webhook/sjms/refund-approval/rejected',
   'refund_approval.processed':        '/webhook/sjms/refund-approval/processed',
 
+  // ── Ledger anomaly detection (Phase 1E) ───────────────────────────────
+  'ledger.anomaly_scan_completed':    '/webhook/sjms/ledger/anomaly-scan-completed',
+  'ledger.anomaly_detected':          '/webhook/sjms/ledger/anomaly-detected',
+
   // ── Exam boards ───────────────────────────────────────────────────────
   'exam_board.scheduled':             '/webhook/sjms/exam-board/scheduled',
   'exam_board.updated':               '/webhook/sjms/exam-board/updated',
