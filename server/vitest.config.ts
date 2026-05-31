@@ -26,11 +26,15 @@ export default defineConfig({
       reporter: ['text', 'json', 'json-summary', 'html'],
       include: ['src/api/**/*.service.ts', 'src/repositories/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
+      // Phase 1G closeout ratchet (was 35/16/33/35 set at Phase 17F).
+      // Coverage on this branch at close is statements 52.49%, branches
+      // 45.09%, functions 27.84%, lines 52.26%; the floors sit ~3pp under
+      // actuals so honest churn within Phase 3+ does not break CI.
       thresholds: {
-        lines: 35,
-        functions: 16,
-        branches: 33,
-        statements: 35,
+        lines: 49,
+        functions: 24,
+        branches: 42,
+        statements: 49,
       },
     },
   },
