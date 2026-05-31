@@ -225,6 +225,21 @@ const EVENT_ROUTES: Record<string, string> = {
   'ukvi.compliance_changed':          '/webhook/sjms/ukvi/compliance-changed',
   'ukvi.record_deleted':              '/webhook/sjms/ukvi/record-deleted',
 
+  // ── EC claims (Phase 3D — one path per workflow, replacing the
+  // prefix-based fallback so each event can route to its own n8n
+  // workflow without shared-path conflicts) ────────────────────────────
+  'ec_claim.submitted':               '/webhook/sjms/ec-claim/submitted',
+  'ec_claim.updated':                 '/webhook/sjms/ec-claim/updated',
+  'ec_claim.status_changed':          '/webhook/sjms/ec-claim/status-changed',
+  'ec_claim.deleted':                 '/webhook/sjms/ec-claim/deleted',
+
+  // ── Appeals (Phase 3D — newly registered; previously hit the global
+  // fallback which prevented per-state n8n routing) ──────────────────────
+  'appeals.created':                  '/webhook/sjms/appeals/created',
+  'appeals.updated':                  '/webhook/sjms/appeals/updated',
+  'appeals.status_changed':           '/webhook/sjms/appeals/status-changed',
+  'appeals.deleted':                  '/webhook/sjms/appeals/deleted',
+
   // ── Prefix-based fallback for domains without dedicated workflows ─────
   'finance':                          '/webhook/sjms/finance',
   'ec_claim':                         '/webhook/sjms/ec-claim',

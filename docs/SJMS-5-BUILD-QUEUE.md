@@ -1,8 +1,8 @@
 # SJMS-5 — Build Queue
 
-> **Current Phase:** **Phase 1 — Finance closeout** is substantially complete on `main`. Batches 1A, 1B, 1B.1, 1C, 1D, 1E have merged; **1F + 1G + 1I** are in flight as one bundle PR on `phase-1f/finance-dashboards`. The only outstanding Phase 1 batch is **1H** (optimistic locking) — carved out as a separate STOP-gate-adjacent PR per operating-model §6 (touches established Prisma relationships across 7 race-prone models). After 1H lands, the next non-STOP-gated phase is **Phase 3** (HESA / UKVI / regulatory).
+> **Current Phase:** **Phase 1 — Finance closeout** is substantially complete on `main` (1A/1B/1B.1/1C/1D/1E/1F/1G/1I all merged; 1H carved out as a STOP-gate-adjacent PR per operating-model §6). **Phase 3 — HESA / UKVI / regulatory** is in flight as a tranche: 3D (EC + Appeals webhook routes), 3F (HESA snapshot immutability trigger), 3G (KI-S5-101 closed by inspection), and partial 3I (closeout for this tranche) are in flight as a bundle PR on `phase-3/hesa-ukvi-regulatory`. **3A** (HUSID + HESES + classification + HESA XML generators) deliberately deferred to a follow-on Phase 3 PR because authoritative HESA spec access is needed for the HUSID check-digit algorithm. **3B/3C/3E/3H** deferred to follow-on PRs per the reasons in `evidence/phase-3/3-first-tranche.md`.
 >
-> **Active branches:** `phase-1f/finance-dashboards` (draft PR — 1F + 1G + 1I bundle). Last merge was PR #98 (Phase 1E) at commit `b1fe6cf`.
+> **Active branches:** `phase-3/hesa-ukvi-regulatory` (draft PR — 3D + 3F + 3G + partial 3I). Last merge was PR #99 (1F + 1G + 1I) at commit `c3b185f`.
 >
 > **Base:** `main` (founding plan merged via PR #1).
 >
