@@ -1460,6 +1460,11 @@ model User {
 
   notifications          Notification[]
   notificationPreferences NotificationPreference[]
+  /// Phase 1I — audit rows where this User was the resolved actor. The FK
+  /// uses onDelete: Restrict so a hard `User` delete is blocked while
+  /// audit history exists; operators soft-delete (User.active = false)
+  /// rather than removing the row.
+  auditLogs              AuditLog[] @relation("AuditLogAuditUser")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -4837,7 +4842,21 @@ model AuditLog {
   entityType   String      @map("entity_type")
   entityId     String      @map("entity_id")
   action       AuditAction
+  /// Free-text actor identifier as captured at the time of the mutation.
+  /// May be a User.id, a Keycloak `sub` claim, a synthetic system actor
+  /// (`system`, `system:ledger-anomaly-cron`, …), or null when the actor
+  /// is unknown. Retained verbatim so the historical chain is preserved
+  /// regardless of whether the resolved User row still exists.
   userId       String?     @map("user_id")
+  /// Phase 1I — resolved User row when the actor is a real authenticated
+  /// User. Populated by the audit helper when it can map the free-text
+  /// `userId` to a User (lookup by id or by Keycloak `sub`); left null for
+  /// synthetic system actors and unresolved Keycloak subs. `onDelete:
+  /// Restrict` prevents a hard delete of a User from orphaning the audit
+  /// chain — operators must soft-delete a User (User.active = false) or
+  /// detach the audit rows first.
+  auditUserId  String?     @map("audit_user_id")
+  auditUser    User?       @relation("AuditLogAuditUser", fields: [auditUserId], references: [id], onDelete: Restrict)
   userRole     String?     @map("user_role")
   ipAddress    String?     @map("ip_address")
   userAgent    String?     @map("user_agent")
@@ -4853,6 +4872,7 @@ model AuditLog {
   @@map("audit_logs")
   @@index([entityType, entityId])
   @@index([userId])
+  @@index([auditUserId])
   @@index([timestamp])
 }
 

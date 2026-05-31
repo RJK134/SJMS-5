@@ -1,8 +1,8 @@
 # SJMS-5 — Build Queue
 
-> **Current Phase:** **Phase 1 — Finance closeout** (in flight on `main`). Batches 1A, 1B, 1B.1, 1D, 1C have all merged; **1E** (ledger anomaly detection) is in flight as a draft PR. Remaining after 1E: **1F** (finance dashboards) → **1G** (closeout) → **1H** (optimistic locking, STOP-gate-adjacent) → **1I** (AuditLog FK hardening). After 1I closes, the next non-STOP-gated phase is Phase 3 (HESA / UKVI / regulatory).
+> **Current Phase:** **Phase 1 — Finance closeout** is substantially complete on `main`. Batches 1A, 1B, 1B.1, 1C, 1D, 1E have merged; **1F + 1G + 1I** are in flight as one bundle PR on `phase-1f/finance-dashboards`. The only outstanding Phase 1 batch is **1H** (optimistic locking) — carved out as a separate STOP-gate-adjacent PR per operating-model §6 (touches established Prisma relationships across 7 race-prone models). After 1H lands, the next non-STOP-gated phase is **Phase 3** (HESA / UKVI / regulatory).
 >
-> **Active branches:** `phase-1e/ledger-anomaly-detection` (draft PR). Last merge was PR #97 (advisory-CI fix) at commit `1e9cfc7`.
+> **Active branches:** `phase-1f/finance-dashboards` (draft PR — 1F + 1G + 1I bundle). Last merge was PR #98 (Phase 1E) at commit `b1fe6cf`.
 >
 > **Base:** `main` (founding plan merged via PR #1).
 >
