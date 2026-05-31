@@ -137,7 +137,16 @@ export async function getCollectionTotals(): Promise<FinanceCollectionTotals> {
 
 // ── Ageing buckets ───────────────────────────────────────────────────────────
 
-const OPEN_INVOICE_STATUSES = ['DRAFT', 'ISSUED', 'PARTIALLY_PAID'] as const;
+// "Open" = the invoice still has (or may have) outstanding balance:
+//   - DRAFT          before issue, but balance accrued
+//   - ISSUED         issued, unpaid
+//   - PARTIALLY_PAID some payment, balance > 0
+//   - OVERDUE        explicitly flagged past dueDate; status orthogonal to
+//                    the bucket logic below, which uses dueDate vs asOf
+//                    directly so OVERDUE invoices land in the correct
+//                    1-30 / 31-60 / 61-90 / 90+ bucket
+// PAID / CANCELLED / WRITTEN_OFF deliberately omitted.
+const OPEN_INVOICE_STATUSES = ['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] as const;
 
 /** Boundary days (inclusive lower, exclusive upper) for the buckets. */
 const AGEING_BOUNDARIES: Array<{ bucket: AgeingBucket['bucket']; minDays: number; maxDays: number | null }> = [

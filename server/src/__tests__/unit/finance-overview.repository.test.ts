@@ -140,11 +140,27 @@ describe('financeOverview.repository — getAgeing', () => {
     expect(r.buckets.every((b) => b.invoiceCount === 0 && b.outstanding === 0)).toBe(true);
   });
 
-  it('filters on the OPEN_INVOICE_STATUSES set', async () => {
+  it('filters on the OPEN_INVOICE_STATUSES set (incl. OVERDUE per BugBot finding on PR #99)', async () => {
     await getAgeing(asOf);
     const where = invoiceFindMany.mock.calls[0][0].where;
     expect(where.deletedAt).toBeNull();
-    expect(where.status.in).toEqual(['DRAFT', 'ISSUED', 'PARTIALLY_PAID']);
+    // OVERDUE must be included — without it any explicitly-flagged overdue
+    // invoice is silently dropped from the dashboard's ageing buckets and
+    // headline open-invoice count.
+    expect(where.status.in).toEqual(['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'OVERDUE']);
+  });
+
+  it('still bucketises an OVERDUE-status invoice by dueDate (status is orthogonal)', async () => {
+    invoiceFindMany.mockResolvedValue([
+      // Explicitly flagged OVERDUE, 45 days past due → 31_60
+      { id: 'ov-1', dueDate: new Date('2026-04-17T00:00:00.000Z'), totalAmount: '500', paidAmount: '0' },
+    ]);
+    const r = await getAgeing(asOf);
+    expect(r.totalOpenInvoices).toBe(1);
+    expect(r.totalOutstanding).toBe(500);
+    const buckets = Object.fromEntries(r.buckets.map((b) => [b.bucket, b]));
+    expect(buckets['31_60'].invoiceCount).toBe(1);
+    expect(buckets['31_60'].outstanding).toBe(500);
   });
 });
 
